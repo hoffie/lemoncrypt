@@ -1,4 +1,4 @@
 [server]
-host = "example.org"
+address = "example.org"
 username = "doe@example.org"
 password = "secret"

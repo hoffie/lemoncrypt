@@ -1,11 +1,13 @@
 package main
 
 import (
-	"os"
+	"crypto/tls"
 	"io/ioutil"
+	"os"
 
-	"github.com/juju/loggo"
 	"github.com/codegangsta/cli"
+	"github.com/juju/loggo"
+	"github.com/mxk/go-imap/imap"
 	"github.com/naoina/toml"
 )
 
@@ -30,10 +32,10 @@ func setupCLI() {
 	app.Name = "lemoncrypt"
 	app.Usage = "archive and encrypt the messages in your mailbox"
 	app.Version = "0.1"
-	app.Flags = []cli.Flag {
+	app.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name: "config",
-			Usage: "path to your config file",
+			Name:   "config",
+			Usage:  "path to your config file",
 			EnvVar: "LIMECRYPT_CONFIG",
 		},
 	}
@@ -49,7 +51,7 @@ type EncryptAction struct {
 
 type Config struct {
 	Server struct {
-		Host string
+		Address  string
 		Username string
 		Password string
 	}
@@ -58,6 +60,7 @@ type Config struct {
 func (a *EncryptAction) Run(ctx *cli.Context) {
 	a.ctx = ctx
 	a.loadConfig()
+	a.dial()
 }
 
 func (a *EncryptAction) loadConfig() {
@@ -78,4 +81,24 @@ func (a *EncryptAction) loadConfig() {
 		os.Exit(1)
 	}
 	logger.Debugf("config loaded successfully")
+}
+
+func (a *EncryptAction) dial() {
+	logger.Debugf("connecting to %s", a.cfg.Server.Address)
+	//FIXME support starttls
+	tlsConfig := &tls.Config{}
+	conn, err := imap.DialTLS(a.cfg.Server.Address, tlsConfig)
+	if err != nil {
+		logger.Errorf("failed to connect: %s", err)
+		os.Exit(1)
+	}
+	logger.Debugf("connected successfully")
+
+	logger.Debugf("attempt to login as %s", a.cfg.Server.Username)
+	_, err = imap.Wait(conn.Login(a.cfg.Server.Username, a.cfg.Server.Password))
+	if err != nil {
+		logger.Errorf("login failed: %s", err)
+		os.Exit(1)
+	}
+	logger.Debugf("logged in")
 }
