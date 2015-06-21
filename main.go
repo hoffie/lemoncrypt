@@ -1,13 +1,11 @@
 package main
 
 import (
-	"crypto/tls"
 	"io/ioutil"
 	"os"
 
 	"github.com/codegangsta/cli"
 	"github.com/juju/loggo"
-	"github.com/mxk/go-imap/imap"
 	"github.com/naoina/toml"
 )
 
@@ -45,8 +43,9 @@ func setupCLI() {
 }
 
 type EncryptAction struct {
-	ctx *cli.Context
-	cfg *Config
+	ctx  *cli.Context
+	cfg  *Config
+	conn *IMAPConnection
 }
 
 type Config struct {
@@ -59,11 +58,23 @@ type Config struct {
 
 func (a *EncryptAction) Run(ctx *cli.Context) {
 	a.ctx = ctx
-	a.loadConfig()
-	a.dial()
+	err := a.loadConfig()
+	if err != nil {
+		os.Exit(1)
+	}
+	err = a.setupServer()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	err = a.process()
+	if err != nil {
+		os.Exit(1)
+	}
+	defer a.closeServer()
 }
 
-func (a *EncryptAction) loadConfig() {
+func (a *EncryptAction) loadConfig() error {
 	path := a.ctx.String("config")
 	if path == "" {
 		path = "lemoncrypt.cfg"
@@ -72,33 +83,31 @@ func (a *EncryptAction) loadConfig() {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		logger.Errorf("failed to read config file: %s", err)
-		os.Exit(1)
+		return err
 	}
 	a.cfg = &Config{}
 	err = toml.Unmarshal(content, a.cfg)
 	if err != nil {
 		logger.Errorf("unable to parse config file: %s", err)
-		os.Exit(1)
+		return err
 	}
 	logger.Debugf("config loaded successfully")
+	return nil
 }
 
-func (a *EncryptAction) dial() {
-	logger.Debugf("connecting to %s", a.cfg.Server.Address)
-	//FIXME support starttls
-	tlsConfig := &tls.Config{}
-	conn, err := imap.DialTLS(a.cfg.Server.Address, tlsConfig)
-	if err != nil {
-		logger.Errorf("failed to connect: %s", err)
-		os.Exit(1)
+func (a *EncryptAction) setupServer() error {
+	a.conn = &IMAPConnection{
+		Address:  a.cfg.Server.Address,
+		Username: a.cfg.Server.Username,
+		Password: a.cfg.Server.Password,
 	}
-	logger.Debugf("connected successfully")
+	return a.conn.Init()
+}
 
-	logger.Debugf("attempt to login as %s", a.cfg.Server.Username)
-	_, err = imap.Wait(conn.Login(a.cfg.Server.Username, a.cfg.Server.Password))
-	if err != nil {
-		logger.Errorf("login failed: %s", err)
-		os.Exit(1)
-	}
-	logger.Debugf("logged in")
+func (a *EncryptAction) closeServer() error {
+	return a.conn.Close()
+}
+
+func (a *EncryptAction) process() error {
+	return a.conn.Walk("INBOX")
 }
