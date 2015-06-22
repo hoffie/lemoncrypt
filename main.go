@@ -42,12 +42,15 @@ func setupCLI() {
 	app.Run(os.Args)
 }
 
+// EncryptAction provides the context for the default encrypt action.
 type EncryptAction struct {
 	ctx  *cli.Context
 	cfg  *Config
-	conn *IMAPConnection
+	conn *IMAPWalker
 }
 
+// Config defines the structure of the TOML config file and represents the
+// stored values.
 type Config struct {
 	Server struct {
 		Address  string
@@ -56,6 +59,7 @@ type Config struct {
 	}
 }
 
+// Run starts the EncryptAction.
 func (a *EncryptAction) Run(ctx *cli.Context) {
 	a.ctx = ctx
 	err := a.loadConfig()
@@ -96,18 +100,23 @@ func (a *EncryptAction) loadConfig() error {
 }
 
 func (a *EncryptAction) setupServer() error {
-	a.conn = &IMAPConnection{
-		Address:  a.cfg.Server.Address,
-		Username: a.cfg.Server.Username,
-		Password: a.cfg.Server.Password,
+	a.conn = NewIMAPWalker()
+	err := a.conn.Dial(a.cfg.Server.Address)
+	if err != nil {
+		return err
 	}
-	return a.conn.Init()
+	return a.conn.Login(a.cfg.Server.Username, a.cfg.Server.Password)
 }
 
 func (a *EncryptAction) closeServer() error {
 	return a.conn.Close()
 }
 
+func (a *EncryptAction) callback(mail []byte) error {
+	logger.Infof("callback: %d bytes", len(mail))
+	return nil
+}
+
 func (a *EncryptAction) process() error {
-	return a.conn.Walk("INBOX")
+	return a.conn.Walk("INBOX", a.callback)
 }

@@ -6,27 +6,34 @@ import (
 	"github.com/mxk/go-imap/imap"
 )
 
+// IMAPConnection handles an IMAP connection.
 type IMAPConnection struct {
-	Address  string
-	Username string
-	Password string
-	conn     *imap.Client
+	conn *imap.Client
 }
 
-func (c *IMAPConnection) Init() error {
-	logger.Debugf("connecting to %s", c.Address)
-	//FIXME support starttls
+// NewIMAPConnection returns a new IMAPConnection instance.
+func NewIMAPConnection() *IMAPConnection {
+	return &IMAPConnection{}
+}
+
+// Dial connects to the given address.
+func (c *IMAPConnection) Dial(address string) error {
+	logger.Debugf("connecting to %s", address)
 	tlsConfig := &tls.Config{}
 	var err error
-	c.conn, err = imap.DialTLS(c.Address, tlsConfig)
+	c.conn, err = imap.DialTLS(address, tlsConfig)
 	if err != nil {
 		logger.Errorf("failed to connect: %s", err)
 		return err
 	}
-	logger.Debugf("connected successfully")
 
-	logger.Debugf("attempting to login as %s", c.Username)
-	_, err = imap.Wait(c.conn.Login(c.Username, c.Password))
+	return nil
+}
+
+// Login authenticates with the server using the provided credentials.
+func (c *IMAPConnection) Login(username, password string) error {
+	logger.Debugf("attempting to login as %s", username)
+	_, err := imap.Wait(c.conn.Login(username, password))
 	if err != nil {
 		logger.Errorf("login failed: %s", err)
 		return err
@@ -35,34 +42,9 @@ func (c *IMAPConnection) Init() error {
 	return nil
 }
 
-func (c *IMAPConnection) Walk(mailbox string) error {
-	c.conn.Select(mailbox, true)
-	set, err := imap.NewSeqSet("1:*")
-	if err != nil {
-		logger.Errorf("failed to create SeqSet")
-		return err
-	}
-	cmd, err := c.conn.Fetch(set, "RFC822")
-	if err != nil {
-		logger.Errorf("FETCH failed: %s", err)
-		return err
-	}
-	for cmd.InProgress() {
-		c.conn.Recv(-1)
-		for _, rsp := range cmd.Data {
-			mail := imap.AsBytes(rsp.MessageInfo().Attrs["RFC822"])
-			logger.Infof("mail: %v", string(mail))
-		}
-		cmd.Data = nil
-
-		// Consume other server data
-		for _, _ = range c.conn.Data {
-		}
-		c.conn.Data = nil
-	}
-	return nil
-}
-
+// Close ends the server connection.
+//
+// Note: Calling this is required to clean up properly.
 func (c *IMAPConnection) Close() error {
 	logger.Debugf("logging out")
 	_, err := c.conn.Logout(0)
