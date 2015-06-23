@@ -33,7 +33,7 @@ func NewIMAPWalker() *IMAPWalker {
 func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error {
 	w.callbackFunc = callbackFunc
 	logger.Debugf("selecting mailbox '%s'", mailbox)
-	_, err := w.conn.Select(mailbox, false /* readonly */)
+	_, err := w.conn.Select(mailbox, true /* read-write */)
 	if err != nil {
 		logger.Errorf("failed to select mailbox: %s", err)
 		return err
@@ -54,7 +54,12 @@ func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error
 		logger.Debugf("result set #%d contains %d results", idx, len(results))
 		_ = w.fetchUIDs(results)
 	}
-	return nil
+	logger.Debugf("finally removing mail marked for deletion")
+	_, err = imap.Wait(w.conn.Expunge(nil))
+	if err != nil {
+		logger.Errorf("failed to remove mail marked for deletion: %s", err)
+	}
+	return err
 }
 
 // fetchUIDs downloads the messages with the given UIDs and invokes the callback for
@@ -70,7 +75,7 @@ func (w *IMAPWalker) fetchUIDs(uid []uint32) error {
 	for cmd.InProgress() {
 		w.conn.Recv(-1)
 		for _, rsp := range cmd.Data {
-			_ = w.invokeMessageCallback(rsp)
+			_ = w.handleMessage(rsp)
 		}
 		cmd.Data = nil
 
@@ -82,18 +87,36 @@ func (w *IMAPWalker) fetchUIDs(uid []uint32) error {
 	return nil
 }
 
+// handleMessage processes one message, invokes the callback and deletes it on
+// success.
+func (w *IMAPWalker) handleMessage(rsp *imap.Response) error {
+	msgInfo := rsp.MessageInfo()
+	err := w.invokeMessageCallback(msgInfo)
+	if err != nil {
+		return err
+	}
+	uid := msgInfo.Attrs["UID"]
+	logger.Debugf("marking message uid=%d for deletion", uid)
+	set, _ := imap.NewSeqSet("")
+	set.AddNum(uid.(uint32)) //FIXME: may crash with evil IMAP server
+	_, err = imap.Wait(w.conn.Store(set, "+FLAGS.SILENT", `\Deleted`))
+	if err != nil {
+		logger.Errorf("failed to mark uid=%d for deletion: %s", uid, err)
+	}
+	return err
+}
+
 // invokeMessageCallback extracts the relevant data from the passed FETCH response
 // and invokes the user-provided callback.
-func (w *IMAPWalker) invokeMessageCallback(rsp *imap.Response) error {
-	msgInfo := rsp.MessageInfo()
+func (w *IMAPWalker) invokeMessageCallback(msgInfo *imap.MessageInfo) error {
 	logger.Debugf("handling mail uid=%d", msgInfo.Attrs["UID"])
 	mailBytes := imap.AsBytes(msgInfo.Attrs["RFC822"])
 	logger.Debugf("invoking callback")
 	err := w.callbackFunc(mailBytes)
-	logger.Debugf("callback completed")
-	if err != nil {
+	if err == nil {
+		logger.Debugf("callback successfully")
+	} else {
 		logger.Warningf("callback failed: %s", err)
-		return err
 	}
-	return nil
+	return err
 }
