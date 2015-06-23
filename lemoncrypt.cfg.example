@@ -1,4 +1,24 @@
+# This config file uses the TOML file format.
+
 [server]
-address = "example.org"
+# address is the host (or host:port) which hosts your IMAP server.
+# Only IMAPS is supported at the moment. This means that SSL is mandatory
+# and STARTTLS does not work yet.
+address = "example.org:993"
+
+# username to authenticate with.
 username = "doe@example.org"
+
+# password to authenticate with.
 password = "secret"
+
+[mailbox]
+# source specifies the name of the IMAP folder where new messages are read
+# from. Only "old" mail will be processed. "old" is currently hardcoded to mean
+# all mail except mail which is younger than 30 days or is still unread or
+# flagged ("starred")
+source = "INBOX"
+
+# target specifies the name of the IMAP folder where processed messages
+# will be moved to.
+target = "INBOX.Archive"
