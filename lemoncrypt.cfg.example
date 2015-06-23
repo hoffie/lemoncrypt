@@ -21,4 +21,6 @@ source = "INBOX"
 
 # target specifies the name of the IMAP folder where processed messages
 # will be moved to.
+# you may specify the same name than "source" as all processed mail is automatically
+# marked and protected against being processed multiple times.
 target = "INBOX.Archive"
