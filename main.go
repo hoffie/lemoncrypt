@@ -57,6 +57,10 @@ type Config struct {
 		Username string
 		Password string
 	}
+	Mailbox struct {
+		Source string
+		Target string
+	}
 }
 
 // Run starts the EncryptAction.
@@ -118,5 +122,5 @@ func (a *EncryptAction) callback(mail []byte) error {
 }
 
 func (a *EncryptAction) process() error {
-	return a.conn.Walk("INBOX", a.callback)
+	return a.conn.Walk(a.cfg.Mailbox.Source, a.callback)
 }
