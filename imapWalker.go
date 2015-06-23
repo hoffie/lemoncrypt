@@ -32,7 +32,12 @@ func NewIMAPWalker() *IMAPWalker {
 // search filter and invokes the callback for each message.
 func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error {
 	w.callbackFunc = callbackFunc
-	w.conn.Select(mailbox, false /* readonly */)
+	logger.Debugf("selecting mailbox '%s'", mailbox)
+	_, err := w.conn.Select(mailbox, false /* readonly */)
+	if err != nil {
+		logger.Errorf("failed to select mailbox: %s", err)
+		return err
+	}
 	date := time.Now().Add(-Month)
 	dateStr := date.Format(IMAPDateFormat)
 	searchFilter := ("SEEN UNFLAGGED (NOT HEADER X-Lemoncrypt \"\") " +
