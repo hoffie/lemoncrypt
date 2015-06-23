@@ -35,7 +35,7 @@ func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error
 	w.conn.Select(mailbox, false /* readonly */)
 	date := time.Now().Add(-Month)
 	dateStr := date.Format(IMAPDateFormat)
-	searchFilter := ("SEEN (NOT HEADER X-Lemoncrypt \"\") " +
+	searchFilter := ("SEEN UNFLAGGED (NOT HEADER X-Lemoncrypt \"\") " +
 		"(OR SENTBEFORE " + dateStr + " BEFORE " + dateStr + ")")
 	logger.Debugf("searching for: %s", searchFilter)
 	cmd, err := imap.Wait(w.conn.Search(searchFilter))
