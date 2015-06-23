@@ -3,9 +3,11 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"time"
 
 	"github.com/codegangsta/cli"
 	"github.com/juju/loggo"
+	"github.com/mxk/go-imap/imap"
 	"github.com/naoina/toml"
 )
 
@@ -44,9 +46,10 @@ func setupCLI() {
 
 // EncryptAction provides the context for the default encrypt action.
 type EncryptAction struct {
-	ctx  *cli.Context
-	cfg  *Config
-	conn *IMAPWalker
+	ctx    *cli.Context
+	cfg    *Config
+	walker *IMAPWalker
+	writer *IMAPWriter
 }
 
 // Config defines the structure of the TOML config file and represents the
@@ -70,16 +73,23 @@ func (a *EncryptAction) Run(ctx *cli.Context) {
 	if err != nil {
 		os.Exit(1)
 	}
-	err = a.setupServer()
+
+	err = a.setupWalkerServer()
 	if err != nil {
 		os.Exit(1)
 	}
+	defer a.closeWalkerServer()
+
+	err = a.setupWriterServer()
+	if err != nil {
+		os.Exit(1)
+	}
+	defer a.closeWriterServer()
 
 	err = a.process()
 	if err != nil {
 		os.Exit(1)
 	}
-	defer a.closeServer()
 }
 
 func (a *EncryptAction) loadConfig() error {
@@ -103,24 +113,42 @@ func (a *EncryptAction) loadConfig() error {
 	return nil
 }
 
-func (a *EncryptAction) setupServer() error {
-	a.conn = NewIMAPWalker()
-	err := a.conn.Dial(a.cfg.Server.Address)
+func (a *EncryptAction) setupWalkerServer() error {
+	a.walker = NewIMAPWalker()
+	err := a.walker.Dial(a.cfg.Server.Address)
 	if err != nil {
 		return err
 	}
-	return a.conn.Login(a.cfg.Server.Username, a.cfg.Server.Password)
+	return a.walker.Login(a.cfg.Server.Username, a.cfg.Server.Password)
 }
 
-func (a *EncryptAction) closeServer() error {
-	return a.conn.Close()
+func (a *EncryptAction) setupWriterServer() error {
+	a.writer = NewIMAPWriter()
+	err := a.writer.Dial(a.cfg.Server.Address)
+	if err != nil {
+		return err
+	}
+
+	err = a.writer.Login(a.cfg.Server.Username, a.cfg.Server.Password)
+	if err != nil {
+		return err
+	}
+
+	return a.writer.SelectMailbox(a.cfg.Mailbox.Target)
 }
 
-func (a *EncryptAction) callback(mail []byte) error {
-	logger.Infof("callback: %d bytes", len(mail))
-	return nil
+func (a *EncryptAction) closeWalkerServer() error {
+	return a.walker.Close()
+}
+
+func (a *EncryptAction) closeWriterServer() error {
+	return a.walker.Close()
+}
+
+func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap.Literal) error {
+	return a.writer.Append(a.cfg.Mailbox.Target, flags, idate, mail)
 }
 
 func (a *EncryptAction) process() error {
-	return a.conn.Walk(a.cfg.Mailbox.Source, a.callback)
+	return a.walker.Walk(a.cfg.Mailbox.Source, a.callback)
 }

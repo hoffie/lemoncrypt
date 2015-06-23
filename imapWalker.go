@@ -10,13 +10,11 @@ import (
 type IMAPWalker struct {
 	*IMAPConnection
 	callbackFunc IMAPWalkerCallback
+	deletionSet  *imap.SeqSet
 }
 
 // IMAPWalkerCallback is the type for the IMAPWalker callback parameter
-type IMAPWalkerCallback func([]byte) error
-
-// IMAP date format (rfc3501)
-const IMAPDateFormat = "_2-Jan-2006"
+type IMAPWalkerCallback func(imap.FlagSet, *time.Time, imap.Literal) error
 
 // The duration of 30 days
 const Month = 30 * 24 * time.Hour
@@ -33,7 +31,7 @@ func NewIMAPWalker() *IMAPWalker {
 func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error {
 	w.callbackFunc = callbackFunc
 	logger.Debugf("selecting mailbox '%s'", mailbox)
-	_, err := w.conn.Select(mailbox, true /* read-write */)
+	_, err := w.conn.Select(mailbox, false /* read-write */)
 	if err != nil {
 		logger.Errorf("failed to select mailbox: %s", err)
 		return err
@@ -67,7 +65,8 @@ func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error
 func (w *IMAPWalker) fetchUIDs(uid []uint32) error {
 	set, _ := imap.NewSeqSet("")
 	set.AddNum(uid...)
-	cmd, err := w.conn.Fetch(set, "RFC822", "UID")
+	w.deletionSet, _ = imap.NewSeqSet("")
+	cmd, err := w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE")
 	if err != nil {
 		logger.Errorf("FETCH failed: %s", err)
 		return err
@@ -84,7 +83,23 @@ func (w *IMAPWalker) fetchUIDs(uid []uint32) error {
 		}
 		w.conn.Data = nil
 	}
-	return nil
+
+	if rsp, err := cmd.Result(imap.OK); err != nil {
+		if err == imap.ErrAborted {
+			logger.Errorf("FETCH command aborted")
+		} else {
+			logger.Errorf("FETCH error: %s", rsp.Info)
+		}
+	} else {
+		logger.Debugf("FETCH completed without errors")
+	}
+
+	logger.Debugf("marking mails as deleted")
+	_, err = imap.Wait(w.conn.Store(set, "+FLAGS.SILENT", "(\\Deleted)"))
+	if err != nil {
+		logger.Errorf("failed to mark uid=%d for deletion: %s", uid, err)
+	}
+	return err
 }
 
 // handleMessage processes one message, invokes the callback and deletes it on
@@ -95,14 +110,9 @@ func (w *IMAPWalker) handleMessage(rsp *imap.Response) error {
 	if err != nil {
 		return err
 	}
-	uid := msgInfo.Attrs["UID"]
-	logger.Debugf("marking message uid=%d for deletion", uid)
-	set, _ := imap.NewSeqSet("")
-	set.AddNum(uid.(uint32)) //FIXME: may crash with evil IMAP server
-	_, err = imap.Wait(w.conn.Store(set, "+FLAGS.SILENT", `\Deleted`))
-	if err != nil {
-		logger.Errorf("failed to mark uid=%d for deletion: %s", uid, err)
-	}
+	uid := imap.AsNumber(msgInfo.Attrs["UID"])
+	logger.Debugf("saving message uid=%d for deletion", uid)
+	w.deletionSet.AddNum(uid)
 	return err
 }
 
@@ -110,11 +120,14 @@ func (w *IMAPWalker) handleMessage(rsp *imap.Response) error {
 // and invokes the user-provided callback.
 func (w *IMAPWalker) invokeMessageCallback(msgInfo *imap.MessageInfo) error {
 	logger.Debugf("handling mail uid=%d", msgInfo.Attrs["UID"])
+	flags := imap.AsFlagSet(msgInfo.Attrs["FLAGS"])
+	idate := imap.AsDateTime(msgInfo.Attrs["INTERNALDATE"])
 	mailBytes := imap.AsBytes(msgInfo.Attrs["RFC822"])
+	mailLiteral := imap.NewLiteral(mailBytes)
 	logger.Debugf("invoking callback")
-	err := w.callbackFunc(mailBytes)
+	err := w.callbackFunc(flags, &idate, mailLiteral)
 	if err == nil {
-		logger.Debugf("callback successfully")
+		logger.Debugf("callback successful")
 	} else {
 		logger.Warningf("callback failed: %s", err)
 	}
