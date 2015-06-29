@@ -23,7 +23,7 @@ func (w *IMAPWriter) SelectMailbox(mailbox string) error {
 	_, err := imap.Wait(w.conn.Create(mailbox))
 	logger.Debugf("mailbox creation ended with err=%s", err)
 	logger.Debugf("selecting mailbox '%s'", mailbox)
-	_, err = imap.Wait(w.conn.Select(mailbox, false /* readwrite */))
+	_, err = imap.Wait(w.conn.Select(mailbox, false /* readonly=false */))
 	if err != nil {
 		logger.Errorf("unable to select mailbox '%s': %s", mailbox, err)
 	}
