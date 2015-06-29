@@ -65,9 +65,9 @@ func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error
 
 // fetchUIDs downloads the messages with the given UIDs and invokes the callback for
 // each message.
-func (w *IMAPWalker) fetchUIDs(uid []uint32) error {
+func (w *IMAPWalker) fetchUIDs(uids []uint32) error {
 	set, _ := imap.NewSeqSet("")
-	set.AddNum(uid...)
+	set.AddNum(uids...)
 	w.deletionSet, _ = imap.NewSeqSet("")
 	cmd, err := w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE")
 	if err != nil {
@@ -100,7 +100,7 @@ func (w *IMAPWalker) fetchUIDs(uid []uint32) error {
 	logger.Debugf("marking mails as deleted")
 	_, err = imap.Wait(w.conn.Store(set, "+FLAGS.SILENT", "(\\Deleted)"))
 	if err != nil {
-		logger.Errorf("failed to mark uid=%d for deletion: %s", uid, err)
+		logger.Errorf("failed to mark uids=%v for deletion: %s", uids, err)
 	}
 	return err
 }
