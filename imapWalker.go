@@ -50,6 +50,9 @@ func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error
 	for idx, rsp := range cmd.Data {
 		results := rsp.SearchResults()
 		logger.Debugf("result set #%d contains %d results", idx, len(results))
+		if len(results) == 0 {
+			continue
+		}
 		_ = w.fetchUIDs(results)
 	}
 	logger.Debugf("finally removing mail marked for deletion")
