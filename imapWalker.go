@@ -6,6 +6,9 @@ import (
 	"github.com/mxk/go-imap/imap"
 )
 
+// IMAP date format (rfc3501)
+const IMAPDateFormat = "_2-Jan-2006"
+
 // IMAPWalker provides support for traversing mails of an IMAP mailbox.
 type IMAPWalker struct {
 	*IMAPConnection

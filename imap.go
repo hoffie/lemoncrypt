@@ -6,9 +6,6 @@ import (
 	"github.com/mxk/go-imap/imap"
 )
 
-// IMAP date format (rfc3501)
-const IMAPDateFormat = "_2-Jan-2006"
-
 // IMAPConnection handles an IMAP connection.
 type IMAPConnection struct {
 	conn *imap.Client
