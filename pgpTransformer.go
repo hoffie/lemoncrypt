@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 )
 
-type PGPWriter struct {
+type PGPTransformer struct {
 	pgpBuffer     *bytes.Buffer
 	outBuffer     *bytes.Buffer
 	pgpWriter     io.WriteCloser
@@ -21,18 +21,18 @@ type PGPWriter struct {
 	signingKey    *openpgp.Entity
 }
 
-func NewPGPWriter() *PGPWriter {
-	return &PGPWriter{}
+func NewPGPTransformer() *PGPTransformer {
+	return &PGPTransformer{}
 }
 
-func (w *PGPWriter) LoadEncryptionKey(path string) error {
+func (w *PGPTransformer) LoadEncryptionKey(path string) error {
 	logger.Debugf("loading encryption key from %s", path)
 	var err error
 	w.encryptionKey, err = w.loadKey(path)
 	return err
 }
 
-func (w *PGPWriter) LoadSigningKey(path, passphrase string) error {
+func (w *PGPTransformer) LoadSigningKey(path, passphrase string) error {
 	logger.Debugf("loading signing key from %s", path)
 	var err error
 	w.signingKey, err = w.loadKey(path)
@@ -52,7 +52,7 @@ func (w *PGPWriter) LoadSigningKey(path, passphrase string) error {
 	return nil
 }
 
-func (w *PGPWriter) loadKey(path string) (*openpgp.Entity, error) {
+func (w *PGPTransformer) loadKey(path string) (*openpgp.Entity, error) {
 	keyringReader, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (w *PGPWriter) loadKey(path string) (*openpgp.Entity, error) {
 	return keyring[0], nil
 }
 
-func (w *PGPWriter) Reset() error {
+func (w *PGPTransformer) Reset() error {
 	w.pgpBuffer = &bytes.Buffer{}
 	var err error
 	w.asciiWriter, err = armor.Encode(w.pgpBuffer, "PGP MESSAGE", nil)
@@ -85,11 +85,11 @@ func (w *PGPWriter) Reset() error {
 	return err
 }
 
-func (w *PGPWriter) Write(data []byte) (int, error) {
+func (w *PGPTransformer) Write(data []byte) (int, error) {
 	return w.pgpWriter.Write(data)
 }
 
-func (w *PGPWriter) GetBytes() ([]byte, error) {
+func (w *PGPTransformer) GetBytes() ([]byte, error) {
 	w.finalizePGP()
 	err := w.finalizeMIME()
 	if err != nil {
@@ -98,12 +98,12 @@ func (w *PGPWriter) GetBytes() ([]byte, error) {
 	return w.outBuffer.Bytes(), nil
 }
 
-func (w *PGPWriter) finalizePGP() {
+func (w *PGPTransformer) finalizePGP() {
 	w.pgpWriter.Close()
 	w.asciiWriter.Close()
 }
 
-func (w *PGPWriter) finalizeMIME() error {
+func (w *PGPTransformer) finalizeMIME() error {
 	tmp := make([]byte, 30)
 	_, err := io.ReadFull(rand.Reader, tmp)
 	if err != nil {

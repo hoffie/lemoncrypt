@@ -9,29 +9,29 @@ import (
 // IMAP date format (rfc3501)
 const IMAPDateFormat = "_2-Jan-2006"
 
-// IMAPWalker provides support for traversing mails of an IMAP mailbox.
-type IMAPWalker struct {
+// IMAPSource provides support for traversing mails of an IMAP mailbox.
+type IMAPSource struct {
 	*IMAPConnection
-	callbackFunc IMAPWalkerCallback
+	callbackFunc IMAPSourceCallback
 	deletionSet  *imap.SeqSet
 }
 
-// IMAPWalkerCallback is the type for the IMAPWalker callback parameter
-type IMAPWalkerCallback func(imap.FlagSet, *time.Time, imap.Literal) error
+// IMAPSourceCallback is the type for the IMAPSource callback parameter
+type IMAPSourceCallback func(imap.FlagSet, *time.Time, imap.Literal) error
 
 // The duration of 30 days
 const Month = 30 * 24 * time.Hour
 
-// NewIMAPWalker returns a new IMAPWalker instance.
-func NewIMAPWalker() *IMAPWalker {
-	return &IMAPWalker{
+// NewIMAPSource returns a new IMAPSource instance.
+func NewIMAPSource() *IMAPSource {
+	return &IMAPSource{
 		IMAPConnection: NewIMAPConnection(),
 	}
 }
 
-// Walk traverses the given mailbox, filters the results by the currently static
-// search filter and invokes the callback for each message.
-func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error {
+// Iterate loops through the given mailbox, filters the results by the currently
+// static search filter and invokes the callback for each message.
+func (w *IMAPSource) Iterate(mailbox string, callbackFunc IMAPSourceCallback) error {
 	w.callbackFunc = callbackFunc
 	logger.Debugf("selecting mailbox '%s'", mailbox)
 	_, err := w.conn.Select(mailbox, false /* read-write */)
@@ -68,7 +68,7 @@ func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error
 
 // fetchUIDs downloads the messages with the given IDs and invokes the callback for
 // each message.
-func (w *IMAPWalker) fetchUIDs(ids []uint32) error {
+func (w *IMAPSource) fetchUIDs(ids []uint32) error {
 	set, _ := imap.NewSeqSet("")
 	set.AddNum(ids...)
 	w.deletionSet, _ = imap.NewSeqSet("")
@@ -113,7 +113,7 @@ func (w *IMAPWalker) fetchUIDs(ids []uint32) error {
 
 // handleMessage processes one message, invokes the callback and deletes it on
 // success.
-func (w *IMAPWalker) handleMessage(rsp *imap.Response) error {
+func (w *IMAPSource) handleMessage(rsp *imap.Response) error {
 	msgInfo := rsp.MessageInfo()
 	err := w.invokeMessageCallback(msgInfo)
 	if err != nil {
@@ -127,7 +127,7 @@ func (w *IMAPWalker) handleMessage(rsp *imap.Response) error {
 
 // invokeMessageCallback extracts the relevant data from the passed FETCH response
 // and invokes the user-provided callback.
-func (w *IMAPWalker) invokeMessageCallback(msgInfo *imap.MessageInfo) error {
+func (w *IMAPSource) invokeMessageCallback(msgInfo *imap.MessageInfo) error {
 	logger.Debugf("handling mail uid=%d", msgInfo.Attrs["UID"])
 	flags := imap.AsFlagSet(msgInfo.Attrs["FLAGS"])
 	idate := imap.AsDateTime(msgInfo.Attrs["INTERNALDATE"])

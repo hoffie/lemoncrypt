@@ -15,9 +15,9 @@ import (
 type EncryptAction struct {
 	ctx    *cli.Context
 	cfg    *Config
-	walker *IMAPWalker
-	writer *IMAPWriter
-	pgp    *PGPWriter
+	source *IMAPSource
+	target *IMAPTarget
+	pgp    *PGPTransformer
 }
 
 // Run starts the EncryptAction.
@@ -34,17 +34,17 @@ func (a *EncryptAction) Run(ctx *cli.Context) {
 		os.Exit(1)
 	}
 
-	err = a.setupWalkerServer()
+	err = a.setupSource()
 	if err != nil {
 		os.Exit(1)
 	}
-	defer a.closeWalkerServer()
+	defer a.closeSource()
 
-	err = a.setupWriterServer()
+	err = a.setupTarget()
 	if err != nil {
 		os.Exit(1)
 	}
-	defer a.closeWriterServer()
+	defer a.closeTarget()
 
 	err = a.setupPGP()
 	if err != nil {
@@ -93,35 +93,35 @@ func (a *EncryptAction) validateConfig() error {
 	return nil
 }
 
-// setupWalkerService initializes the source IMAP connection.
-func (a *EncryptAction) setupWalkerServer() error {
-	a.walker = NewIMAPWalker()
-	err := a.walker.Dial(a.cfg.Server.Address)
+// setupSource initializes the source IMAP connection.
+func (a *EncryptAction) setupSource() error {
+	a.source = NewIMAPSource()
+	err := a.source.Dial(a.cfg.Server.Address)
 	if err != nil {
 		return err
 	}
-	return a.walker.Login(a.cfg.Server.Username, a.cfg.Server.Password)
+	return a.source.Login(a.cfg.Server.Username, a.cfg.Server.Password)
 }
 
-// setupWalkerService initializes the target IMAP connection.
-func (a *EncryptAction) setupWriterServer() error {
-	a.writer = NewIMAPWriter()
-	err := a.writer.Dial(a.cfg.Server.Address)
+// setupTarget initializes the target IMAP connection.
+func (a *EncryptAction) setupTarget() error {
+	a.target = NewIMAPTarget()
+	err := a.target.Dial(a.cfg.Server.Address)
 	if err != nil {
 		return err
 	}
 
-	err = a.writer.Login(a.cfg.Server.Username, a.cfg.Server.Password)
+	err = a.target.Login(a.cfg.Server.Username, a.cfg.Server.Password)
 	if err != nil {
 		return err
 	}
 
-	return a.writer.SelectMailbox(a.cfg.Mailbox.Target)
+	return a.target.SelectMailbox(a.cfg.Mailbox.Target)
 }
 
 // setupPGP initializes the PGP message converter.
 func (a *EncryptAction) setupPGP() error {
-	a.pgp = NewPGPWriter()
+	a.pgp = NewPGPTransformer()
 	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath)
 	if err != nil {
 		logger.Errorf("failed to load encryption key: %s", err)
@@ -138,16 +138,15 @@ func (a *EncryptAction) setupPGP() error {
 	return nil
 }
 
-// closeWalkerService cleans up the source server connection.
-// FIXME: rename?
-func (a *EncryptAction) closeWalkerServer() error {
-	return a.walker.Close()
+// closeSource cleans up the source server connection.
+func (a *EncryptAction) closeSource() error {
+	return a.source.Close()
 }
 
-// closeWriterServer cleans up the target server connection.
+// closeTarget cleans up the target server connection.
 // FIXME: rename?
-func (a *EncryptAction) closeWriterServer() error {
-	return a.walker.Close()
+func (a *EncryptAction) closeTarget() error {
+	return a.target.Close()
 }
 
 // callback is called for each message, handles transformation and writes the result
@@ -167,11 +166,11 @@ func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap
 		return err
 	}
 	encMail := imap.NewLiteral(bytes)
-	return a.writer.Append(a.cfg.Mailbox.Target, flags, idate, encMail)
+	return a.target.Append(a.cfg.Mailbox.Target, flags, idate, encMail)
 }
 
 // process starts iterating over the source mailbox's mails and invokes the callback
 // FIXME rename
 func (a *EncryptAction) process() error {
-	return a.walker.Walk(a.cfg.Mailbox.Source, a.callback)
+	return a.source.Iterate(a.cfg.Mailbox.Source, a.callback)
 }

@@ -6,19 +6,19 @@ import (
 	"github.com/mxk/go-imap/imap"
 )
 
-// IMAPWriter provides support for writing mails to an IMAP mailbox.
-type IMAPWriter struct {
+// IMAPTarget provides support for writing mails to an IMAP mailbox.
+type IMAPTarget struct {
 	*IMAPConnection
 }
 
-// NewIMAPWriter returns a new IMAPWriter instance.
-func NewIMAPWriter() *IMAPWriter {
-	return &IMAPWriter{
+// NewIMAPTarget returns a new IMAPTarget instance.
+func NewIMAPTarget() *IMAPTarget {
+	return &IMAPTarget{
 		IMAPConnection: NewIMAPConnection(),
 	}
 }
 
-func (w *IMAPWriter) SelectMailbox(mailbox string) error {
+func (w *IMAPTarget) SelectMailbox(mailbox string) error {
 	logger.Debugf("blindly creating mailbox '%s'", mailbox)
 	_, err := imap.Wait(w.conn.Create(mailbox))
 	logger.Debugf("mailbox creation ended with err=%s", err)
@@ -30,7 +30,7 @@ func (w *IMAPWriter) SelectMailbox(mailbox string) error {
 	return err
 }
 
-func (w *IMAPWriter) Append(mailbox string, flags imap.FlagSet, idate *time.Time, msg imap.Literal) error {
+func (w *IMAPTarget) Append(mailbox string, flags imap.FlagSet, idate *time.Time, msg imap.Literal) error {
 	logger.Debugf("appending mail to mailbox '%s'", mailbox)
 	_, err := imap.Wait(w.conn.Append(mailbox, flags, idate, msg))
 	if err != nil {
