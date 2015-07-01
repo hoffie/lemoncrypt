@@ -63,11 +63,11 @@ func (w *IMAPWalker) Walk(mailbox string, callbackFunc IMAPWalkerCallback) error
 	return err
 }
 
-// fetchUIDs downloads the messages with the given UIDs and invokes the callback for
+// fetchUIDs downloads the messages with the given IDs and invokes the callback for
 // each message.
-func (w *IMAPWalker) fetchUIDs(uids []uint32) error {
+func (w *IMAPWalker) fetchUIDs(ids []uint32) error {
 	set, _ := imap.NewSeqSet("")
-	set.AddNum(uids...)
+	set.AddNum(ids...)
 	w.deletionSet, _ = imap.NewSeqSet("")
 	cmd, err := w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE")
 	if err != nil {
@@ -96,11 +96,14 @@ func (w *IMAPWalker) fetchUIDs(uids []uint32) error {
 	} else {
 		logger.Debugf("FETCH completed without errors")
 	}
+	if w.deletionSet.Empty() {
+		return nil
+	}
 
 	logger.Debugf("marking mails as deleted")
-	_, err = imap.Wait(w.conn.Store(set, "+FLAGS.SILENT", "(\\Deleted)"))
+	_, err = imap.Wait(w.conn.UIDStore(w.deletionSet, "+FLAGS", "(\\Deleted)"))
 	if err != nil {
-		logger.Errorf("failed to mark uids=%v for deletion: %s", uids, err)
+		logger.Errorf("failed to mark set=%v for deletion: %s", w.deletionSet.String(), err)
 	}
 	return err
 }
@@ -114,7 +117,7 @@ func (w *IMAPWalker) handleMessage(rsp *imap.Response) error {
 		return err
 	}
 	uid := imap.AsNumber(msgInfo.Attrs["UID"])
-	logger.Debugf("saving message uid=%d for deletion", uid)
+	logger.Debugf("internally marking message uid=%d for deletion", uid)
 	w.deletionSet.AddNum(uid)
 	return err
 }

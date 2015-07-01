@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"time"
@@ -64,6 +65,11 @@ type Config struct {
 		Source string
 		Target string
 	}
+	PGP struct {
+		EncryptionKeyPath    string
+		SigningKeyPath       string
+		SigningKeyPassphrase string
+	}
 }
 
 // Run starts the EncryptAction.
@@ -71,6 +77,12 @@ func (a *EncryptAction) Run(ctx *cli.Context) {
 	a.ctx = ctx
 	err := a.loadConfig()
 	if err != nil {
+		os.Exit(1)
+	}
+
+	err = a.validateConfig()
+	if err != nil {
+		logger.Errorf("config validation failed: %s", err)
 		os.Exit(1)
 	}
 
@@ -113,6 +125,13 @@ func (a *EncryptAction) loadConfig() error {
 	return nil
 }
 
+func (a *EncryptAction) validateConfig() error {
+	if a.cfg.PGP.EncryptionKeyPath == "" {
+		return errors.New("missing encryption key path")
+	}
+	return nil
+}
+
 func (a *EncryptAction) setupWalkerServer() error {
 	a.walker = NewIMAPWalker()
 	err := a.walker.Dial(a.cfg.Server.Address)
@@ -146,7 +165,29 @@ func (a *EncryptAction) closeWriterServer() error {
 }
 
 func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap.Literal) error {
-	return a.writer.Append(a.cfg.Mailbox.Target, flags, idate, mail)
+	encWriter := NewPGPWriter()
+	err := encWriter.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath)
+	if err != nil {
+		return err
+	}
+	err = encWriter.LoadSigningKey(a.cfg.PGP.SigningKeyPath, a.cfg.PGP.SigningKeyPassphrase)
+	if err != nil {
+		return err
+	}
+	err = encWriter.Reset()
+	if err != nil {
+		return err
+	}
+	_, err = mail.WriteTo(encWriter)
+	if err != nil {
+		return err
+	}
+	bytes, err := encWriter.GetBytes()
+	if err != nil {
+		return err
+	}
+	encMail := imap.NewLiteral(bytes)
+	return a.writer.Append(a.cfg.Mailbox.Target, flags, idate, encMail)
 }
 
 func (a *EncryptAction) process() error {
