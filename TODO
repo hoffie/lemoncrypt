@@ -1,2 +1,9 @@
 - STARTTLS support
-- custom certificate support
+- custom SSL certificate support
+- hardcode modern ciphers/hash algos
+- round-trip / decryption support
+- test other mail clients than Thunderbird
+- ignore encrypted mail
+- decide on how to handle signed mail
+- copy-up headers
+- metrics support (size before/after, time per message)
