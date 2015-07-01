@@ -51,6 +51,7 @@ type EncryptAction struct {
 	cfg    *Config
 	walker *IMAPWalker
 	writer *IMAPWriter
+	pgp    *PGPWriter
 }
 
 // Config defines the structure of the TOML config file and represents the
@@ -97,6 +98,11 @@ func (a *EncryptAction) Run(ctx *cli.Context) {
 		os.Exit(1)
 	}
 	defer a.closeWriterServer()
+
+	err = a.setupPGP()
+	if err != nil {
+		os.Exit(1)
+	}
 
 	err = a.process()
 	if err != nil {
@@ -156,6 +162,22 @@ func (a *EncryptAction) setupWriterServer() error {
 	return a.writer.SelectMailbox(a.cfg.Mailbox.Target)
 }
 
+func (a *EncryptAction) setupPGP() error {
+	a.pgp = NewPGPWriter()
+	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath)
+	if err != nil {
+		logger.Errorf("failed to load encryption key: %s", err)
+		return err
+	}
+	err = a.pgp.LoadSigningKey(a.cfg.PGP.SigningKeyPath,
+		a.cfg.PGP.SigningKeyPassphrase)
+	if err != nil {
+		logger.Errorf("failed to load signing key: %s", err)
+		return err
+	}
+	return nil
+}
+
 func (a *EncryptAction) closeWalkerServer() error {
 	return a.walker.Close()
 }
@@ -165,24 +187,15 @@ func (a *EncryptAction) closeWriterServer() error {
 }
 
 func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap.Literal) error {
-	encWriter := NewPGPWriter()
-	err := encWriter.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath)
+	err := a.pgp.Reset()
 	if err != nil {
 		return err
 	}
-	err = encWriter.LoadSigningKey(a.cfg.PGP.SigningKeyPath, a.cfg.PGP.SigningKeyPassphrase)
+	_, err = mail.WriteTo(a.pgp)
 	if err != nil {
 		return err
 	}
-	err = encWriter.Reset()
-	if err != nil {
-		return err
-	}
-	_, err = mail.WriteTo(encWriter)
-	if err != nil {
-		return err
-	}
-	bytes, err := encWriter.GetBytes()
+	bytes, err := a.pgp.GetBytes()
 	if err != nil {
 		return err
 	}
