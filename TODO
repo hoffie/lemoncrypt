@@ -6,3 +6,4 @@
 - hardcode modern ciphers/hash algos
 - document the missing memory optimization
 - proper line wrapping for long (copied) headers
+- mark stored mails for deletion on the server immediately to avoid potential inconsistencies
