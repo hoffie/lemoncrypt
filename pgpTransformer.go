@@ -12,6 +12,8 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 )
 
+// PGPTransformer provides support for converting arbitrary plain messages to PGP/MIME
+// messages in a way which allows for bit-perfect reversal of the operation.
 type PGPTransformer struct {
 	pgpBuffer     *bytes.Buffer
 	outBuffer     *bytes.Buffer
@@ -21,10 +23,13 @@ type PGPTransformer struct {
 	signingKey    *openpgp.Entity
 }
 
+// NewPGPTransformer returns a new PGPTransformer instance.
 func NewPGPTransformer() *PGPTransformer {
 	return &PGPTransformer{}
 }
 
+// LoadEncryptionKey loads the keyring from the given path and tries to set up the
+// first and only public key found there as the encryption target.
 func (w *PGPTransformer) LoadEncryptionKey(path string) error {
 	logger.Debugf("loading encryption key from %s", path)
 	var err error
@@ -32,6 +37,9 @@ func (w *PGPTransformer) LoadEncryptionKey(path string) error {
 	return err
 }
 
+// LoadSigningKey loads the keyring from the given path and tries to so set up
+// the first and only private key found there as the signing key, optionally
+// decrypting it with the given passphrase first.
 func (w *PGPTransformer) LoadSigningKey(path, passphrase string) error {
 	logger.Debugf("loading signing key from %s", path)
 	var err error
@@ -52,6 +60,8 @@ func (w *PGPTransformer) LoadSigningKey(path, passphrase string) error {
 	return nil
 }
 
+// loadKey is the internal method which contains the common key loading and
+// parsing functionality.
 func (w *PGPTransformer) loadKey(path string) (*openpgp.Entity, error) {
 	keyringReader, err := os.Open(path)
 	if err != nil {
@@ -69,6 +79,10 @@ func (w *PGPTransformer) loadKey(path string) (*openpgp.Entity, error) {
 	return keyring[0], nil
 }
 
+// Reset configures the PGPTransformer to be ready for the first or next message
+// transformation.
+// Call this method before initially passing the transformer data or before passing
+// it any new data after finishing handling of the previous item.
 func (w *PGPTransformer) Reset() error {
 	w.pgpBuffer = &bytes.Buffer{}
 	var err error
@@ -85,10 +99,12 @@ func (w *PGPTransformer) Reset() error {
 	return err
 }
 
+// Write passes the given data to the underlying PGP encryptor.
 func (w *PGPTransformer) Write(data []byte) (int, error) {
 	return w.pgpWriter.Write(data)
 }
 
+// GetBytes returns the encrypted message as a byte array.
 func (w *PGPTransformer) GetBytes() ([]byte, error) {
 	w.finalizePGP()
 	err := w.finalizeMIME()
@@ -98,11 +114,13 @@ func (w *PGPTransformer) GetBytes() ([]byte, error) {
 	return w.outBuffer.Bytes(), nil
 }
 
+// finalizePGP ends the PGP encryption process and ascii-encoding process.
 func (w *PGPTransformer) finalizePGP() {
 	w.pgpWriter.Close()
 	w.asciiWriter.Close()
 }
 
+// finalizeMIME finally encodes the PGP ascii-armored data in a MIME message.
 func (w *PGPTransformer) finalizeMIME() error {
 	tmp := make([]byte, 30)
 	_, err := io.ReadFull(rand.Reader, tmp)

@@ -18,6 +18,7 @@ func NewIMAPTarget() *IMAPTarget {
 	}
 }
 
+// SelectMailbox sets up the IMAP connection to use the given mailbox name.
 func (w *IMAPTarget) SelectMailbox(mailbox string) error {
 	logger.Debugf("blindly creating mailbox '%s'", mailbox)
 	_, err := imap.Wait(w.conn.Create(mailbox))
@@ -30,6 +31,8 @@ func (w *IMAPTarget) SelectMailbox(mailbox string) error {
 	return err
 }
 
+// Append adds the given message to the given mailbox with the given flags and internal
+// date.
 func (w *IMAPTarget) Append(mailbox string, flags imap.FlagSet, idate *time.Time, msg imap.Literal) error {
 	logger.Debugf("appending mail to mailbox '%s'", mailbox)
 	_, err := imap.Wait(w.conn.Append(mailbox, flags, idate, msg))
