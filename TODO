@@ -2,8 +2,9 @@
 - test other mail clients than Thunderbird
 - ignore encrypted mail
 - decide on how to handle signed mail
-- copy-up headers
 - metrics support (size before/after, time per message)
 - STARTTLS support
 - custom SSL certificate support
 - hardcode modern ciphers/hash algos
+- document the missing memory optimization
+- proper line wrapping for long (copied) headers
