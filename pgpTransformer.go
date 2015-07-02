@@ -115,8 +115,11 @@ func (w *PGPTransformer) Write(data []byte) (int, error) {
 
 // GetBytes returns the encrypted message as a byte array.
 func (w *PGPTransformer) GetBytes() ([]byte, error) {
-	w.finalizePGP()
-	err := w.finalizeMIME()
+	err := w.finalizePGP()
+	if err != nil {
+		return nil, err
+	}
+	err = w.finalizeMIME()
 	if err != nil {
 		return nil, err
 	}
@@ -124,9 +127,12 @@ func (w *PGPTransformer) GetBytes() ([]byte, error) {
 }
 
 // finalizePGP ends the PGP encryption process and ascii-encoding process.
-func (w *PGPTransformer) finalizePGP() {
-	w.pgpWriter.Close()
-	w.asciiWriter.Close()
+func (w *PGPTransformer) finalizePGP() error {
+	err := w.pgpWriter.Close()
+	if err != nil {
+		return err
+	}
+	return w.asciiWriter.Close()
 }
 
 // finalizeMIME finally encodes the PGP ascii-armored data in a MIME message.
