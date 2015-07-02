@@ -131,31 +131,12 @@ func (w *PGPTransformer) finalizePGP() {
 
 // finalizeMIME finally encodes the PGP ascii-armored data in a MIME message.
 func (w *PGPTransformer) finalizeMIME() error {
-	tmp := make([]byte, 30)
-	_, err := io.ReadFull(rand.Reader, tmp)
-	if err != nil {
-		return err
-	}
-	boundary := fmt.Sprintf("%x", tmp)
 	w.outBuffer = &bytes.Buffer{}
-	err = w.writePlainHeaders()
+	err := w.writePlainHeaders()
 	if err != nil {
 		return err
 	}
-	w.outBuffer.WriteString(
-		"MIME-Version: 1.0\n" +
-			"Content-Type: multipart/encrypted;\n" +
-			" protocol=\"application/pgp-encrypted\";\n" +
-			" boundary=\"" + boundary + "\"\n\n" +
-			"OpenPGP/MIME\n" +
-			"--" + boundary + "\n" +
-			"Content-Type: application/pgp-encrypted\n\n" +
-			"Version: 1\n\n" +
-			"--" + boundary + "\n" +
-			"Content-Type: application/octet-stream; name=\"encrypted.asc\"\n" +
-			"Content-Disposition: inline; filename=\"encrypted.asc\"\n\n" +
-			string(w.pgpBuffer.Bytes()) + "\n--" + boundary + "--")
-	return nil
+	return w.writeMIMEStructure()
 }
 
 // writePlainHeaders generates Message-Id and copies all the plain headers which are
@@ -187,4 +168,39 @@ func (w *PGPTransformer) writePlainHeaders() error {
 		w.outBuffer.WriteString(key + ": " + val + "\n")
 	}
 	return nil
+}
+
+// writeMIMEStructure writes the basic MIME structure and the encrypted content
+// to the output buffer.
+func (w *PGPTransformer) writeMIMEStructure() error {
+	boundary, err := generateBoundary()
+	if err != nil {
+		return err
+	}
+	w.outBuffer.WriteString(
+		"MIME-Version: 1.0\n" +
+			"Content-Type: multipart/encrypted;\n" +
+			" protocol=\"application/pgp-encrypted\";\n" +
+			" boundary=\"" + boundary + "\"\n\n" +
+			"OpenPGP/MIME\n" +
+			"--" + boundary + "\n" +
+			"Content-Type: application/pgp-encrypted\n\n" +
+			"Version: 1\n\n" +
+			"--" + boundary + "\n" +
+			"Content-Type: application/octet-stream; name=\"encrypted.asc\"\n" +
+			"Content-Disposition: inline; filename=\"encrypted.asc\"\n\n" +
+			string(w.pgpBuffer.Bytes()) + "\n--" + boundary + "--")
+	return nil
+}
+
+// generateBoundary creates a random boundary string suitable for
+// MIME part separation.
+func generateBoundary() (string, error) {
+	tmp := make([]byte, 30)
+	_, err := io.ReadFull(rand.Reader, tmp)
+	if err != nil {
+		return "", err
+	}
+	boundary := fmt.Sprintf("%x", tmp)
+	return boundary, nil
 }
