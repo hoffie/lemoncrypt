@@ -1,8 +1,7 @@
 - round-trip / decryption support
-- test other mail clients than Thunderbird
 - ignore encrypted mail
-- document how signed mail is handled (works in TB)
 - metrics support (size before/after, time per message)
+- document how signed mail is handled (works in TB)
 - STARTTLS support
 - custom SSL certificate support
 - hardcode modern ciphers/hash algos
