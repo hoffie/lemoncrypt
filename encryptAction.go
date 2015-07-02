@@ -90,6 +90,10 @@ func (a *EncryptAction) validateConfig() error {
 	if a.cfg.PGP.EncryptionKeyPath == "" {
 		return errors.New("missing encryption key path")
 	}
+	if len(a.cfg.PGP.PlainHeaders) == 0 {
+		a.cfg.PGP.PlainHeaders = []string{
+			"From", "To", "Cc", "Bcc", "Date", "Subject"}
+	}
 	return nil
 }
 
@@ -121,7 +125,7 @@ func (a *EncryptAction) setupTarget() error {
 
 // setupPGP initializes the PGP message converter.
 func (a *EncryptAction) setupPGP() error {
-	a.pgp = NewPGPTransformer()
+	a.pgp = NewPGPTransformer(a.cfg.PGP.PlainHeaders)
 	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath)
 	if err != nil {
 		logger.Errorf("failed to load encryption key: %s", err)

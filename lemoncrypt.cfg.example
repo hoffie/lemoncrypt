@@ -40,3 +40,9 @@ signing_key_path = "sign.priv.asc"
 
 # this is the passphrase of your signing key (if given during gpg export)
 signing_key_passphrase = ""
+
+# this is a list of mail headers which we copy from the original message in
+# order to retain them as clear text. this helps ordinary mail clients
+# to provide useful list views and search functionality but obviously is
+# a usability/security trade-off.
+#plain_headers = ["From", "To", "Cc", "Bcc", "Date", "Subject"]

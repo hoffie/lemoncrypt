@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
+	"net/textproto"
 	"os"
 
 	"golang.org/x/crypto/openpgp"
@@ -17,15 +19,17 @@ import (
 type PGPTransformer struct {
 	pgpBuffer     *bytes.Buffer
 	outBuffer     *bytes.Buffer
+	plainBuffer   *bytes.Buffer
 	pgpWriter     io.WriteCloser
 	asciiWriter   io.WriteCloser
 	encryptionKey *openpgp.Entity
 	signingKey    *openpgp.Entity
+	keepHeaders   []string
 }
 
 // NewPGPTransformer returns a new PGPTransformer instance.
-func NewPGPTransformer() *PGPTransformer {
-	return &PGPTransformer{}
+func NewPGPTransformer(keepHeaders []string) *PGPTransformer {
+	return &PGPTransformer{keepHeaders: keepHeaders}
 }
 
 // LoadEncryptionKey loads the keyring from the given path and tries to set up the
@@ -85,6 +89,7 @@ func (w *PGPTransformer) loadKey(path string) (*openpgp.Entity, error) {
 // it any new data after finishing handling of the previous item.
 func (w *PGPTransformer) Reset() error {
 	w.pgpBuffer = &bytes.Buffer{}
+	w.plainBuffer = &bytes.Buffer{}
 	var err error
 	w.asciiWriter, err = armor.Encode(w.pgpBuffer, "PGP MESSAGE", nil)
 	if err != nil {
@@ -101,6 +106,10 @@ func (w *PGPTransformer) Reset() error {
 
 // Write passes the given data to the underlying PGP encryptor.
 func (w *PGPTransformer) Write(data []byte) (int, error) {
+	_, err := w.plainBuffer.Write(data)
+	if err != nil {
+		return 0, err
+	}
 	return w.pgpWriter.Write(data)
 }
 
@@ -129,6 +138,10 @@ func (w *PGPTransformer) finalizeMIME() error {
 	}
 	boundary := fmt.Sprintf("%x", tmp)
 	w.outBuffer = &bytes.Buffer{}
+	err = w.writePlainHeaders()
+	if err != nil {
+		return err
+	}
 	w.outBuffer.WriteString(
 		"MIME-Version: 1.0\n" +
 			"Content-Type: multipart/encrypted;\n" +
@@ -142,5 +155,36 @@ func (w *PGPTransformer) finalizeMIME() error {
 			"Content-Type: application/octet-stream; name=\"encrypted.asc\"\n" +
 			"Content-Disposition: inline; filename=\"encrypted.asc\"\n\n" +
 			string(w.pgpBuffer.Bytes()) + "\n--" + boundary + "--")
+	return nil
+}
+
+// writePlainHeaders generates Message-Id and copies all the plain headers which are
+// configured to be copied up from the original message to the output buffer.
+func (w *PGPTransformer) writePlainHeaders() error {
+	plainReader := bufio.NewReader(w.plainBuffer)
+	mimeReader := textproto.NewReader(plainReader)
+	headers, err := mimeReader.ReadMIMEHeader()
+	if err != nil {
+		return err
+	}
+	msgid := headers.Get("Message-Id")
+	if msgid != "" {
+		prefix := "lemoncrypt."
+		if len(msgid) > 1 && msgid[0] == '<' {
+			msgid = msgid[0:1] + prefix + msgid[1:]
+		} else {
+			msgid += prefix + msgid[1:]
+		}
+	}
+	w.outBuffer.WriteString("Message-Id: " + msgid + "\n")
+	for _, key := range w.keepHeaders {
+		val := headers.Get(key)
+		if val == "" {
+			// don't attempt to copy empty headers
+			continue
+		}
+		//FIXME proper line wrapping; not obvious how go does it
+		w.outBuffer.WriteString(key + ": " + val + "\n")
+	}
 	return nil
 }

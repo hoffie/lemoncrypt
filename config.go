@@ -16,5 +16,6 @@ type Config struct {
 		EncryptionKeyPath    string
 		SigningKeyPath       string
 		SigningKeyPassphrase string
+		PlainHeaders         []string
 	}
 }
