@@ -1,5 +1,4 @@
 - round-trip / decryption support
-- ignore encrypted mail
 - metrics support (size before/after, time per message)
 - document how signed mail is handled (works in TB)
 - STARTTLS support

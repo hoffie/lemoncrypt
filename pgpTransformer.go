@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/textproto"
 	"os"
+	"strings"
 
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
@@ -25,6 +26,7 @@ type PGPTransformer struct {
 	encryptionKey *openpgp.Entity
 	signingKey    *openpgp.Entity
 	keepHeaders   []string
+	headers       textproto.MIMEHeader
 }
 
 // NewPGPTransformer returns a new PGPTransformer instance.
@@ -150,11 +152,23 @@ func (w *PGPTransformer) finalizeMIME() error {
 func (w *PGPTransformer) writePlainHeaders() error {
 	plainReader := bufio.NewReader(w.plainBuffer)
 	mimeReader := textproto.NewReader(plainReader)
-	headers, err := mimeReader.ReadMIMEHeader()
+	var err error
+	w.headers, err = mimeReader.ReadMIMEHeader()
 	if err != nil {
 		return err
 	}
-	msgid := headers.Get("Message-Id")
+	ctype := w.headers.Get("Content-Type")
+	if strings.HasPrefix(ctype, "multipart/encrypted") {
+		return errors.New("already encrypted")
+	}
+	w.writeMessageID()
+	w.writeKeptHeaders()
+	return nil
+}
+
+// writeMessageID outputs the current message's adapted message id.
+func (w *PGPTransformer) writeMessageID() {
+	msgid := w.headers.Get("Message-Id")
 	if msgid != "" {
 		prefix := "lemoncrypt."
 		if len(msgid) > 1 && msgid[0] == '<' {
@@ -164,8 +178,12 @@ func (w *PGPTransformer) writePlainHeaders() error {
 		}
 	}
 	w.outBuffer.WriteString("Message-Id: " + msgid + "\n")
+}
+
+// writeKeptHeaders outputs the current message's copied plaintext headers.
+func (w *PGPTransformer) writeKeptHeaders() {
 	for _, key := range w.keepHeaders {
-		val := headers.Get(key)
+		val := w.headers.Get(key)
 		if val == "" {
 			// don't attempt to copy empty headers
 			continue
@@ -173,7 +191,6 @@ func (w *PGPTransformer) writePlainHeaders() error {
 		//FIXME proper line wrapping; not obvious how go does it
 		w.outBuffer.WriteString(key + ": " + val + "\n")
 	}
-	return nil
 }
 
 // writeMIMEStructure writes the basic MIME structure and the encrypted content
