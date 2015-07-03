@@ -157,15 +157,15 @@ func (a *EncryptAction) closeTarget() error {
 // to the target mailbox.
 // FIXME rename
 func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap.Literal) error {
-	err := a.pgp.Reset()
+	e, err := a.pgp.NewEncryptor()
 	if err != nil {
 		return err
 	}
-	_, err = mail.WriteTo(a.pgp)
+	_, err = mail.WriteTo(e)
 	if err != nil {
 		return err
 	}
-	bytes, err := a.pgp.GetBytes()
+	bytes, err := e.GetBytes()
 	if err != nil {
 		return err
 	}
