@@ -25,24 +25,24 @@ func NewPGPTransformer(keepHeaders []string) *PGPTransformer {
 
 // LoadEncryptionKey loads the keyring from the given path and tries to set up the
 // first and only public key found there as the encryption target.
-func (w *PGPTransformer) LoadEncryptionKey(path string) error {
+func (t *PGPTransformer) LoadEncryptionKey(path string) error {
 	logger.Debugf("loading encryption key from %s", path)
 	var err error
-	w.encryptionKey, err = w.loadKey(path)
+	t.encryptionKey, err = t.loadKey(path)
 	return err
 }
 
 // LoadSigningKey loads the keyring from the given path and tries to so set up
 // the first and only private key found there as the signing key, optionally
 // decrypting it with the given passphrase first.
-func (w *PGPTransformer) LoadSigningKey(path, passphrase string) error {
+func (t *PGPTransformer) LoadSigningKey(path, passphrase string) error {
 	logger.Debugf("loading signing key from %s", path)
 	var err error
-	w.signingKey, err = w.loadKey(path)
+	t.signingKey, err = t.loadKey(path)
 	if err != nil {
 		return err
 	}
-	priv := w.signingKey.PrivateKey
+	priv := t.signingKey.PrivateKey
 	if priv == nil {
 		return errors.New("signing key lacks private key")
 	}
@@ -57,7 +57,7 @@ func (w *PGPTransformer) LoadSigningKey(path, passphrase string) error {
 
 // loadKey is the internal method which contains the common key loading and
 // parsing functionality.
-func (w *PGPTransformer) loadKey(path string) (*openpgp.Entity, error) {
+func (t *PGPTransformer) loadKey(path string) (*openpgp.Entity, error) {
 	keyringReader, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -76,12 +76,12 @@ func (w *PGPTransformer) loadKey(path string) (*openpgp.Entity, error) {
 
 // NewEncryptor returns a new PGPEncryptor instance, which is ready for
 // encrypting one single mail.
-func (w *PGPTransformer) NewEncryptor() (*PGPEncryptor, error) {
-	if w.encryptionKey == nil {
+func (t *PGPTransformer) NewEncryptor() (*PGPEncryptor, error) {
+	if t.encryptionKey == nil {
 		return nil, errors.New("missing encryption key")
 	}
 	e := &PGPEncryptor{}
-	e.keepHeaders = w.keepHeaders
+	e.keepHeaders = t.keepHeaders
 	e.pgpBuffer = &bytes.Buffer{}
 	e.plainBuffer = &bytes.Buffer{}
 	var err error
@@ -90,7 +90,7 @@ func (w *PGPTransformer) NewEncryptor() (*PGPEncryptor, error) {
 		return nil, err
 	}
 	e.pgpWriter, err = openpgp.Encrypt(e.asciiWriter,
-		[]*openpgp.Entity{w.encryptionKey}, w.signingKey,
+		[]*openpgp.Entity{t.encryptionKey}, t.signingKey,
 		&openpgp.FileHints{IsBinary: true}, nil)
 	if err != nil {
 		return nil, err
