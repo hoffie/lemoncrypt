@@ -1,18 +1,21 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
 )
 
 const (
-	msgIDPrefix  = "lemoncrypt."
+	// msgIDPrefix is the string which is prepended to each Message-Id when
+	// converting messages.
+	msgIDPrefix = "lemoncrypt."
+
+	// CustomHeader is the key of the MIME header which is added to each
+	// message.
 	CustomHeader = "X-Lemoncrypt"
 )
 
@@ -93,32 +96,10 @@ func (t *PGPTransformer) loadKey(path, wantID, passphrase string) (*openpgp.Enti
 // NewEncryptor returns a new PGPEncryptor instance, which is ready for
 // encrypting one single mail.
 func (t *PGPTransformer) NewEncryptor() (*PGPEncryptor, error) {
-	if t.encryptionKey == nil {
-		return nil, errors.New("missing encryption key")
-	}
-	e := &PGPEncryptor{}
-	e.keepHeaders = t.keepHeaders
-	e.pgpBuffer = &bytes.Buffer{}
-	e.plainBuffer = &bytes.Buffer{}
-	var err error
-	e.asciiWriter, err = armor.Encode(e.pgpBuffer, "PGP MESSAGE", nil)
-	if err != nil {
-		return nil, err
-	}
-	e.pgpWriter, err = openpgp.Encrypt(e.asciiWriter,
-		[]*openpgp.Entity{t.encryptionKey}, t.signingKey,
-		&openpgp.FileHints{IsBinary: true}, nil)
-	if err != nil {
-		return nil, err
-	}
-	return e, nil
+	return NewPGPEncryptor(t.encryptionKey, t.signingKey, t.keepHeaders)
 }
 
-func (t *PGPTransformer) NewDecryptor() (*PGPDecryptor, error) {
-	d := &PGPDecryptor{}
-	err := d.Init(t.signingKey, t.encryptionKey, t.encryptionKeyPassphrase)
-	if err != nil {
-		return nil, err
-	}
-	return d, nil
+// NewDecryptor returns and initializes a new PGPDecryptor instance.
+func (t *PGPTransformer) NewDecryptor() *PGPDecryptor {
+	return NewPGPDecryptor(t.signingKey, t.encryptionKey, t.encryptionKeyPassphrase)
 }

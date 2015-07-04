@@ -15,6 +15,7 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 )
 
+// PGPDecryptor handles decryption of a single mail message.
 type PGPDecryptor struct {
 	buf                  *bytes.Buffer
 	headers              textproto.MIMEHeader
@@ -22,11 +23,13 @@ type PGPDecryptor struct {
 	decryptionPassphrase string
 }
 
-func (d *PGPDecryptor) Init(signingKey, decryptionKey *openpgp.Entity, decryptionPassphrase string) error {
+// NewPGPDecryptor returns a new PGPDecryptor instance, initialized with the given parameters.
+func NewPGPDecryptor(signingKey, decryptionKey *openpgp.Entity, decryptionPassphrase string) *PGPDecryptor {
+	d := &PGPDecryptor{}
 	d.buf = &bytes.Buffer{}
 	d.decryptionPassphrase = decryptionPassphrase
 	d.keyring = openpgp.EntityList{signingKey, decryptionKey}
-	return nil
+	return d
 }
 
 func (d *PGPDecryptor) Write(data []byte) (int, error) {
@@ -118,6 +121,7 @@ func (d *PGPDecryptor) isLemoncrypt() bool {
 	return true
 }
 
+// getBoundary extracts the boundary parameter from the Content-Type header and returns it.
 func (d *PGPDecryptor) getBoundary() (string, error) {
 	_, params, err := mime.ParseMediaType(d.headers.Get("Content-Type"))
 	if err != nil {

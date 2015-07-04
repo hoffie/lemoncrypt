@@ -176,10 +176,7 @@ func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap
 		return err
 	}
 	encMail := imap.NewLiteral(encBytes)
-	d, err := a.pgp.NewDecryptor()
-	if err != nil {
-		return err
-	}
+	d := a.pgp.NewDecryptor()
 	_, err = encMail.WriteTo(d)
 	decBytes, err := d.GetBytes()
 	if err != nil {

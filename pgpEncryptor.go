@@ -9,6 +9,9 @@ import (
 	"io"
 	"net/textproto"
 	"strings"
+
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/armor"
 )
 
 // PGPEncryptor implements PGP encryption; use PGPTransformer.NewEncryptor
@@ -21,6 +24,30 @@ type PGPEncryptor struct {
 	asciiWriter io.WriteCloser
 	keepHeaders []string
 	headers     textproto.MIMEHeader
+}
+
+// NewPGPEncryptor returns a new PGPEncryptor instance, prepared for encrypting one single
+// mail with the given parameters.
+func NewPGPEncryptor(signingKey, encryptionKey *openpgp.Entity, keepHeaders []string) (*PGPEncryptor, error) {
+	if encryptionKey == nil {
+		return nil, errors.New("missing encryption key")
+	}
+	e := &PGPEncryptor{}
+	e.keepHeaders = keepHeaders
+	e.pgpBuffer = &bytes.Buffer{}
+	e.plainBuffer = &bytes.Buffer{}
+	var err error
+	e.asciiWriter, err = armor.Encode(e.pgpBuffer, "PGP MESSAGE", nil)
+	if err != nil {
+		return nil, err
+	}
+	e.pgpWriter, err = openpgp.Encrypt(e.asciiWriter,
+		[]*openpgp.Entity{encryptionKey}, signingKey,
+		&openpgp.FileHints{IsBinary: true}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return e, nil
 }
 
 // Write passes the given data to the underlying PGP encryptor.
