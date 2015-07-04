@@ -94,6 +94,9 @@ func (a *EncryptAction) validateConfig() error {
 		a.cfg.PGP.PlainHeaders = []string{
 			"From", "To", "Cc", "Bcc", "Date", "Subject"}
 	}
+
+	a.cfg.PGP.EncryptionKeyPath = expandTilde(a.cfg.PGP.EncryptionKeyPath)
+	a.cfg.PGP.SigningKeyPath = expandTilde(a.cfg.PGP.SigningKeyPath)
 	return nil
 }
 
@@ -126,13 +129,13 @@ func (a *EncryptAction) setupTarget() error {
 // setupPGP initializes the PGP message converter.
 func (a *EncryptAction) setupPGP() error {
 	a.pgp = NewPGPTransformer(a.cfg.PGP.PlainHeaders)
-	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath)
+	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath, a.cfg.PGP.EncryptionKeyId)
 	if err != nil {
 		logger.Errorf("failed to load encryption key: %s", err)
 		return err
 	}
 
-	err = a.pgp.LoadSigningKey(a.cfg.PGP.SigningKeyPath,
+	err = a.pgp.LoadSigningKey(a.cfg.PGP.SigningKeyPath, a.cfg.PGP.SigningKeyId,
 		a.cfg.PGP.SigningKeyPassphrase)
 	if err != nil {
 		logger.Errorf("failed to load signing key: %s", err)

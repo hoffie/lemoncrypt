@@ -14,7 +14,9 @@ type Config struct {
 	}
 	PGP struct {
 		EncryptionKeyPath    string
+		EncryptionKeyId      string
 		SigningKeyPath       string
+		SigningKeyId         string
 		SigningKeyPassphrase string
 		PlainHeaders         []string
 	}

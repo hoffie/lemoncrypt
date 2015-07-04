@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
@@ -25,20 +26,20 @@ func NewPGPTransformer(keepHeaders []string) *PGPTransformer {
 
 // LoadEncryptionKey loads the keyring from the given path and tries to set up the
 // first and only public key found there as the encryption target.
-func (t *PGPTransformer) LoadEncryptionKey(path string) error {
-	logger.Debugf("loading encryption key from %s", path)
+func (t *PGPTransformer) LoadEncryptionKey(path, id string) error {
+	logger.Debugf("loading encryption key from %s (id=%s)", path, id)
 	var err error
-	t.encryptionKey, err = t.loadKey(path)
+	t.encryptionKey, err = t.loadKey(path, id)
 	return err
 }
 
 // LoadSigningKey loads the keyring from the given path and tries to so set up
 // the first and only private key found there as the signing key, optionally
 // decrypting it with the given passphrase first.
-func (t *PGPTransformer) LoadSigningKey(path, passphrase string) error {
-	logger.Debugf("loading signing key from %s", path)
+func (t *PGPTransformer) LoadSigningKey(path, id, passphrase string) error {
+	logger.Debugf("loading signing key from %s (id=%s)", path, id)
 	var err error
-	t.signingKey, err = t.loadKey(path)
+	t.signingKey, err = t.loadKey(path, id)
 	if err != nil {
 		return err
 	}
@@ -57,21 +58,29 @@ func (t *PGPTransformer) LoadSigningKey(path, passphrase string) error {
 
 // loadKey is the internal method which contains the common key loading and
 // parsing functionality.
-func (t *PGPTransformer) loadKey(path string) (*openpgp.Entity, error) {
+func (t *PGPTransformer) loadKey(path, wantId string) (*openpgp.Entity, error) {
 	keyringReader, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer keyringReader.Close()
-	keyring, err := openpgp.ReadArmoredKeyRing(keyringReader)
+	keyring, err := openpgp.ReadKeyRing(keyringReader)
 	if err != nil {
 		return nil, err
 	}
-	if len(keyring) != 1 {
-		logger.Errorf("encryption key ring contains %d keys; expected 1", len(keyring))
-		return nil, errors.New("encryption key ring must contain exactly one key")
+	var foundKey *openpgp.Entity
+	for _, key := range keyring {
+		id := key.PrimaryKey.KeyIdString()
+		if strings.HasSuffix(id, wantId) {
+			foundKey = key
+			logger.Infof("loaded key with keyid=%s", id)
+			break
+		}
 	}
-	return keyring[0], nil
+	if foundKey == nil {
+		return nil, fmt.Errorf("no key with keyid=%s", wantId)
+	}
+	return foundKey, nil
 }
 
 // NewEncryptor returns a new PGPEncryptor instance, which is ready for
