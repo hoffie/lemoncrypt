@@ -45,7 +45,7 @@ encryption_key_passphrase = ""
 signing_key_path = "~/.gnupg/secring.gpg"
 
 # GPG short id of your signing key
-encryption_key_id = "12345678"
+signing_key_id = "12345678"
 
 # this is the passphrase of your signing key
 signing_key_passphrase = ""
