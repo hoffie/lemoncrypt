@@ -131,14 +131,14 @@ func (a *EncryptAction) setupTarget() error {
 // setupPGP initializes the PGP message converter.
 func (a *EncryptAction) setupPGP() error {
 	a.pgp = NewPGPTransformer(a.cfg.PGP.PlainHeaders)
-	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath, a.cfg.PGP.EncryptionKeyId,
+	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath, a.cfg.PGP.EncryptionKeyID,
 		a.cfg.PGP.EncryptionKeyPassphrase)
 	if err != nil {
 		logger.Errorf("failed to load encryption key: %s", err)
 		return err
 	}
 
-	err = a.pgp.LoadSigningKey(a.cfg.PGP.SigningKeyPath, a.cfg.PGP.SigningKeyId,
+	err = a.pgp.LoadSigningKey(a.cfg.PGP.SigningKeyPath, a.cfg.PGP.SigningKeyID,
 		a.cfg.PGP.SigningKeyPassphrase)
 	if err != nil {
 		logger.Errorf("failed to load signing key: %s", err)

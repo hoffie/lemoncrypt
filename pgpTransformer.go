@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	msgIdPrefix  = "lemoncrypt."
+	msgIDPrefix  = "lemoncrypt."
 	CustomHeader = "X-Lemoncrypt"
 )
 
@@ -55,7 +55,7 @@ func (t *PGPTransformer) LoadSigningKey(path, id, passphrase string) error {
 
 // loadKey is the internal method which contains the common key loading and
 // parsing functionality.
-func (t *PGPTransformer) loadKey(path, wantId, passphrase string) (*openpgp.Entity, error) {
+func (t *PGPTransformer) loadKey(path, wantID, passphrase string) (*openpgp.Entity, error) {
 	keyringReader, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -68,14 +68,14 @@ func (t *PGPTransformer) loadKey(path, wantId, passphrase string) (*openpgp.Enti
 	var foundKey *openpgp.Entity
 	for _, key := range keyring {
 		id := key.PrimaryKey.KeyIdString()
-		if strings.HasSuffix(id, wantId) {
+		if strings.HasSuffix(id, wantID) {
 			foundKey = key
 			logger.Infof("loaded key with keyid=%s", id)
 			break
 		}
 	}
 	if foundKey == nil {
-		return nil, fmt.Errorf("no key with keyid=%s", wantId)
+		return nil, fmt.Errorf("no key with keyid=%s", wantID)
 	}
 	priv := foundKey.PrivateKey
 	if priv == nil {

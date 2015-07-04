@@ -89,9 +89,9 @@ func (e *PGPEncryptor) writeMessageID() {
 	msgid := e.headers.Get("Message-Id")
 	if msgid != "" {
 		if len(msgid) > 1 && msgid[0] == '<' {
-			msgid = msgid[0:1] + msgIdPrefix + msgid[1:]
+			msgid = msgid[0:1] + msgIDPrefix + msgid[1:]
 		} else {
-			msgid += msgIdPrefix + msgid[1:]
+			msgid += msgIDPrefix + msgid[1:]
 		}
 	}
 	e.outBuffer.WriteString("Message-Id: " + msgid + "\n")

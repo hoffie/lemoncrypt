@@ -14,10 +14,10 @@ type Config struct {
 	}
 	PGP struct {
 		EncryptionKeyPath       string
-		EncryptionKeyId         string
+		EncryptionKeyID         string `toml:"encryption_key_id"`
 		EncryptionKeyPassphrase string
 		SigningKeyPath          string
-		SigningKeyId            string
+		SigningKeyID            string `toml:"signing_key_id"`
 		SigningKeyPassphrase    string
 		PlainHeaders            []string
 	}
