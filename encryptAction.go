@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/codegangsta/cli"
@@ -129,7 +131,8 @@ func (a *EncryptAction) setupTarget() error {
 // setupPGP initializes the PGP message converter.
 func (a *EncryptAction) setupPGP() error {
 	a.pgp = NewPGPTransformer(a.cfg.PGP.PlainHeaders)
-	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath, a.cfg.PGP.EncryptionKeyId)
+	err := a.pgp.LoadEncryptionKey(a.cfg.PGP.EncryptionKeyPath, a.cfg.PGP.EncryptionKeyId,
+		a.cfg.PGP.EncryptionKeyPassphrase)
 	if err != nil {
 		logger.Errorf("failed to load encryption key: %s", err)
 		return err
@@ -168,11 +171,29 @@ func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap
 	if err != nil {
 		return err
 	}
-	bytes, err := e.GetBytes()
+	encBytes, err := e.GetBytes()
 	if err != nil {
 		return err
 	}
-	encMail := imap.NewLiteral(bytes)
+	encMail := imap.NewLiteral(encBytes)
+	d, err := a.pgp.NewDecryptor()
+	if err != nil {
+		return err
+	}
+	_, err = encMail.WriteTo(d)
+	decBytes, err := d.GetBytes()
+	if err != nil {
+		return err
+	}
+	origBuffer := &bytes.Buffer{}
+	_, err = mail.WriteTo(origBuffer)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(origBuffer.Bytes(), decBytes) {
+		return errors.New("round-trip verification failed")
+	}
+	logger.Infof("round-trip verification succeeded")
 	return a.target.Append(a.cfg.Mailbox.Target, flags, idate, encMail)
 }
 

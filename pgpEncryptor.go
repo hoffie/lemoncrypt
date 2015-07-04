@@ -80,6 +80,7 @@ func (e *PGPEncryptor) writePlainHeaders() error {
 	}
 	e.writeMessageID()
 	e.writeKeptHeaders()
+	e.writeLemoncryptHeader()
 	return nil
 }
 
@@ -87,14 +88,17 @@ func (e *PGPEncryptor) writePlainHeaders() error {
 func (e *PGPEncryptor) writeMessageID() {
 	msgid := e.headers.Get("Message-Id")
 	if msgid != "" {
-		prefix := "lemoncrypt."
 		if len(msgid) > 1 && msgid[0] == '<' {
-			msgid = msgid[0:1] + prefix + msgid[1:]
+			msgid = msgid[0:1] + msgIdPrefix + msgid[1:]
 		} else {
-			msgid += prefix + msgid[1:]
+			msgid += msgIdPrefix + msgid[1:]
 		}
 	}
 	e.outBuffer.WriteString("Message-Id: " + msgid + "\n")
+}
+
+func (e *PGPEncryptor) writeLemoncryptHeader() {
+	e.outBuffer.WriteString(CustomHeader + ": v0.1\n")
 }
 
 // writeKeptHeaders outputs the current message's copied plaintext headers.

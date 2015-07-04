@@ -13,11 +13,12 @@ type Config struct {
 		Target string
 	}
 	PGP struct {
-		EncryptionKeyPath    string
-		EncryptionKeyId      string
-		SigningKeyPath       string
-		SigningKeyId         string
-		SigningKeyPassphrase string
-		PlainHeaders         []string
+		EncryptionKeyPath       string
+		EncryptionKeyId         string
+		EncryptionKeyPassphrase string
+		SigningKeyPath          string
+		SigningKeyId            string
+		SigningKeyPassphrase    string
+		PlainHeaders            []string
 	}
 }

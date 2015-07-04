@@ -11,12 +11,18 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 )
 
+const (
+	msgIdPrefix  = "lemoncrypt."
+	CustomHeader = "X-Lemoncrypt"
+)
+
 // PGPTransformer provides support for converting arbitrary plain messages to PGP/MIME
 // messages in a way which allows for bit-perfect reversal of the operation.
 type PGPTransformer struct {
-	encryptionKey *openpgp.Entity
-	signingKey    *openpgp.Entity
-	keepHeaders   []string
+	signingKey              *openpgp.Entity
+	encryptionKey           *openpgp.Entity
+	encryptionKeyPassphrase string
+	keepHeaders             []string
 }
 
 // NewPGPTransformer returns a new PGPTransformer instance.
@@ -26,11 +32,15 @@ func NewPGPTransformer(keepHeaders []string) *PGPTransformer {
 
 // LoadEncryptionKey loads the keyring from the given path and tries to set up the
 // first and only public key found there as the encryption target.
-func (t *PGPTransformer) LoadEncryptionKey(path, id string) error {
+func (t *PGPTransformer) LoadEncryptionKey(path, id, passphrase string) error {
 	logger.Debugf("loading encryption key from %s (id=%s)", path, id)
 	var err error
-	t.encryptionKey, err = t.loadKey(path, id)
-	return err
+	t.encryptionKey, err = t.loadKey(path, id, passphrase)
+	if err != nil {
+		return err
+	}
+	t.encryptionKeyPassphrase = passphrase
+	return nil
 }
 
 // LoadSigningKey loads the keyring from the given path and tries to so set up
@@ -39,26 +49,13 @@ func (t *PGPTransformer) LoadEncryptionKey(path, id string) error {
 func (t *PGPTransformer) LoadSigningKey(path, id, passphrase string) error {
 	logger.Debugf("loading signing key from %s (id=%s)", path, id)
 	var err error
-	t.signingKey, err = t.loadKey(path, id)
-	if err != nil {
-		return err
-	}
-	priv := t.signingKey.PrivateKey
-	if priv == nil {
-		return errors.New("signing key lacks private key")
-	}
-	if priv.Encrypted {
-		err := priv.Decrypt([]byte(passphrase))
-		if err != nil {
-			return fmt.Errorf("failed to decrypt private key: %s", err)
-		}
-	}
-	return nil
+	t.signingKey, err = t.loadKey(path, id, passphrase)
+	return err
 }
 
 // loadKey is the internal method which contains the common key loading and
 // parsing functionality.
-func (t *PGPTransformer) loadKey(path, wantId string) (*openpgp.Entity, error) {
+func (t *PGPTransformer) loadKey(path, wantId, passphrase string) (*openpgp.Entity, error) {
 	keyringReader, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -79,6 +76,16 @@ func (t *PGPTransformer) loadKey(path, wantId string) (*openpgp.Entity, error) {
 	}
 	if foundKey == nil {
 		return nil, fmt.Errorf("no key with keyid=%s", wantId)
+	}
+	priv := foundKey.PrivateKey
+	if priv == nil {
+		return nil, errors.New("signing key lacks private key")
+	}
+	if priv.Encrypted {
+		err := priv.Decrypt([]byte(passphrase))
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt private key: %s", err)
+		}
 	}
 	return foundKey, nil
 }
@@ -105,4 +112,13 @@ func (t *PGPTransformer) NewEncryptor() (*PGPEncryptor, error) {
 		return nil, err
 	}
 	return e, nil
+}
+
+func (t *PGPTransformer) NewDecryptor() (*PGPDecryptor, error) {
+	d := &PGPDecryptor{}
+	err := d.Init(t.signingKey, t.encryptionKey, t.encryptionKeyPassphrase)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
 }
