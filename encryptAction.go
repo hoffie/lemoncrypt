@@ -53,7 +53,7 @@ func (a *EncryptAction) Run(ctx *cli.Context) {
 		os.Exit(1)
 	}
 
-	err = a.process()
+	err = a.encryptMails()
 	if err != nil {
 		os.Exit(1)
 	}
@@ -154,15 +154,18 @@ func (a *EncryptAction) closeSource() error {
 }
 
 // closeTarget cleans up the target server connection.
-// FIXME: rename?
 func (a *EncryptAction) closeTarget() error {
 	return a.target.Close()
 }
 
-// callback is called for each message, handles transformation and writes the result
+// encryptMails starts iterating over the source mailbox's mails and invokes the callback
+func (a *EncryptAction) encryptMails() error {
+	return a.source.Iterate(a.cfg.Mailbox.Source, a.encryptMail)
+}
+
+// encryptMail is called for each message, handles transformation and writes the result
 // to the target mailbox.
-// FIXME rename
-func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap.Literal) error {
+func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, mail imap.Literal) error {
 	e, err := a.pgp.NewEncryptor()
 	if err != nil {
 		return err
@@ -192,10 +195,4 @@ func (a *EncryptAction) callback(flags imap.FlagSet, idate *time.Time, mail imap
 	}
 	logger.Infof("round-trip verification succeeded")
 	return a.target.Append(a.cfg.Mailbox.Target, flags, idate, encMail)
-}
-
-// process starts iterating over the source mailbox's mails and invokes the callback
-// FIXME rename
-func (a *EncryptAction) process() error {
-	return a.source.Iterate(a.cfg.Mailbox.Source, a.callback)
 }
