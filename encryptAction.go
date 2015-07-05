@@ -171,7 +171,7 @@ func (a *EncryptAction) setupMetrics() error {
 	if outfile == "" {
 		return nil
 	}
-	logger.Debugf("initializing metrics collector with target)'%s'", outfile)
+	logger.Debugf("initializing metrics collector with target='%s'", outfile)
 	var err error
 	a.metrics, err = NewMetricCollector(outfile)
 	if err != nil {
