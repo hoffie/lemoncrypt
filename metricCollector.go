@@ -19,6 +19,7 @@ type MetricRecord struct {
 	collector  *MetricCollector
 	StartTime  time.Time
 	EndTime    time.Time
+	Duration   time.Duration
 	OrigSize   uint32
 	ResultSize uint32
 	Success    bool
@@ -45,7 +46,7 @@ func NewMetricCollector(outfile string) (*MetricCollector, error) {
 
 // writeHeader outputs a CSV header to the output file.
 func (mc *MetricCollector) writeHeader() error {
-	_, err := mc.outfd.WriteString("StartTime;EndTime;OrigSize;ResultSize;Success")
+	_, err := mc.outfd.WriteString("StartTime;EndTime;Duration (ns);OrigSize (B);ResultSize (B);Success\n")
 	if err != nil {
 		return fmt.Errorf("failed to write header: %s", err)
 	}
@@ -67,6 +68,7 @@ func (mc *MetricCollector) NewRecord() *MetricRecord {
 // so it can be serialized to disk.
 func (mr *MetricRecord) Commit() error {
 	mr.EndTime = time.Now()
+	mr.Duration = mr.EndTime.Sub(mr.StartTime)
 	return mr.collector.writeRecord(mr)
 }
 
@@ -74,8 +76,8 @@ func (mr *MetricRecord) Commit() error {
 // A file sync is triggered every 128 seconds in order to reduce the risk
 // for information loss in case of crashes.
 func (mc *MetricCollector) writeRecord(r *MetricRecord) error {
-	_, err := fmt.Fprintf(mc.outfd, "%s;%s;%d;%d;%t",
-		r.StartTime, r.EndTime, r.OrigSize, r.ResultSize, r.Success)
+	_, err := fmt.Fprintf(mc.outfd, "%s;%s;%d;%d;%d;%t\n",
+		r.StartTime, r.EndTime, r.Duration, r.OrigSize, r.ResultSize, r.Success)
 	if err != nil {
 		return fmt.Errorf("failed to write record: %s", err)
 	}
