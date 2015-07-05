@@ -35,6 +35,7 @@ func (w *IMAPTarget) SelectMailbox(mailbox string) error {
 // date.
 func (w *IMAPTarget) Append(mailbox string, flags imap.FlagSet, idate *time.Time, msg imap.Literal) error {
 	logger.Debugf("appending mail to mailbox '%s'", mailbox)
+	delete(flags, "\\Recent")
 	_, err := imap.Wait(w.conn.Append(mailbox, flags, idate, msg))
 	if err != nil {
 		logger.Errorf("failed to store message: %s", err)
