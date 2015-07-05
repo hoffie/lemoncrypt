@@ -6,6 +6,11 @@ import (
 	"github.com/mxk/go-imap/imap"
 )
 
+func init() {
+	// needed to handle large mailboxes (search result list)
+	imap.BufferSize = 20 * 1024 * 1024
+}
+
 // IMAPConnection handles an IMAP connection.
 type IMAPConnection struct {
 	conn *imap.Client
