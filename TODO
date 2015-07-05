@@ -1,5 +1,4 @@
 - verify log levels
-- metrics support (size before/after, time per message)
 - document how signed mail is handled (works in TB)
 - STARTTLS support
 - custom SSL certificate support
@@ -7,3 +6,4 @@
 - document the missing memory optimization
 - proper line wrapping for long (copied) headers
 - mark stored mails for deletion on the server immediately to avoid potential inconsistencies
+- keyid lookup strangeness (gpg vs. go)
