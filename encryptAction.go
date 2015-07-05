@@ -15,11 +15,12 @@ import (
 
 // EncryptAction provides the context for the default encrypt action.
 type EncryptAction struct {
-	ctx    *cli.Context
-	cfg    *Config
-	source *IMAPSource
-	target *IMAPTarget
-	pgp    *PGPTransformer
+	ctx     *cli.Context
+	cfg     *Config
+	source  *IMAPSource
+	target  *IMAPTarget
+	pgp     *PGPTransformer
+	metrics *MetricCollector
 }
 
 // Run starts the EncryptAction.
@@ -49,6 +50,11 @@ func (a *EncryptAction) Run(ctx *cli.Context) {
 	defer a.closeTarget()
 
 	err = a.setupPGP()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	err = a.setupMetrics()
 	if err != nil {
 		os.Exit(1)
 	}
@@ -158,6 +164,19 @@ func (a *EncryptAction) closeTarget() error {
 	return a.target.Close()
 }
 
+// setupMetrics initializes the metrics collector if the --write-metrics
+// command line parameter is given.
+func (a *EncryptAction) setupMetrics() error {
+	outfile := a.ctx.String("write-metrics")
+	if outfile == "" {
+		return nil
+	}
+	logger.Debugf("initializing metrics collector with target)'%s'", outfile)
+	var err error
+	a.metrics, err = NewMetricCollector(outfile)
+	return err
+}
+
 // encryptMails starts iterating over the source mailbox's mails and invokes the callback
 func (a *EncryptAction) encryptMails() error {
 	return a.source.Iterate(a.cfg.Mailbox.Source, a.encryptMail)
@@ -165,12 +184,23 @@ func (a *EncryptAction) encryptMails() error {
 
 // encryptMail is called for each message, handles transformation and writes the result
 // to the target mailbox.
-func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, mail imap.Literal) error {
+// FIXME: refactoring candidate
+func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, origMail imap.Literal) error {
+	metricRecord := a.metrics.NewRecord()
+	metricRecord.OrigSize = origMail.Info().Len
+	metricRecord.Success = false
+	defer func() {
+		err := metricRecord.Commit()
+		if err != nil {
+			logger.Warningf("failed to write metric record: %s", err)
+		}
+	}()
+
 	e, err := a.pgp.NewEncryptor()
 	if err != nil {
 		return err
 	}
-	_, err = mail.WriteTo(e)
+	_, err = origMail.WriteTo(e)
 	if err != nil {
 		return err
 	}
@@ -179,6 +209,7 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, mail i
 		return err
 	}
 	encMail := imap.NewLiteral(encBytes)
+	metricRecord.ResultSize = encMail.Info().Len
 	d := a.pgp.NewDecryptor()
 	_, err = encMail.WriteTo(d)
 	decBytes, err := d.GetBytes()
@@ -186,7 +217,7 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, mail i
 		return err
 	}
 	origBuffer := &bytes.Buffer{}
-	_, err = mail.WriteTo(origBuffer)
+	_, err = origMail.WriteTo(origBuffer)
 	if err != nil {
 		return err
 	}
@@ -194,5 +225,6 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, mail i
 		return errors.New("round-trip verification failed")
 	}
 	logger.Infof("round-trip verification succeeded")
+	metricRecord.Success = true
 	return a.target.Append(a.cfg.Mailbox.Target, flags, idate, encMail)
 }

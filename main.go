@@ -40,6 +40,10 @@ func setupCLI() {
 			Usage:  "path to your config file",
 			EnvVar: "LIMECRYPT_CONFIG",
 		},
+		cli.StringFlag{
+			Name:  "write-metrics",
+			Usage: "collect metrics and write them to the given file",
+		},
 	}
 	ea := &EncryptAction{}
 	app.Action = ea.Run
