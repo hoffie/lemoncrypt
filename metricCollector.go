@@ -76,6 +76,11 @@ func (mr *MetricRecord) Commit() error {
 // A file sync is triggered every 128 seconds in order to reduce the risk
 // for information loss in case of crashes.
 func (mc *MetricCollector) writeRecord(r *MetricRecord) error {
+	if mc == nil {
+		// if we attempt to write to an uninitialized MetricCollector, we fail
+		// silently as this means that none has been configured.
+		return nil
+	}
 	_, err := fmt.Fprintf(mc.outfd, "%s;%s;%d;%d;%d;%t\n",
 		r.StartTime, r.EndTime, r.Duration, r.OrigSize, r.ResultSize, r.Success)
 	if err != nil {
