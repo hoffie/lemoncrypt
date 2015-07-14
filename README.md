@@ -30,7 +30,7 @@ Note: lemoncrypt will only encrypt emails, which are older than 30 days, have be
 This will become adjustable in the future.
 
 ## License
-lemoncrypt is distributed under the [AGPL license](LICENSE.AGPL)
+lemoncrypt is distributed under the [AGPL license](LICENSE.AGPLv3)
 
 ## Author
 This project was initially created by Christian Hoffmann (@hoffie).
