@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 // PGPEncryptor implements PGP encryption; use PGPTransformer.NewEncryptor
@@ -41,9 +43,13 @@ func NewPGPEncryptor(signingKey, encryptionKey *openpgp.Entity, keepHeaders []st
 	if err != nil {
 		return nil, err
 	}
+	cfg := &packet.Config{
+		DefaultCipher: packet.CipherAES256,
+		DefaultHash:   crypto.SHA256,
+	}
 	e.pgpWriter, err = openpgp.Encrypt(e.asciiWriter,
 		[]*openpgp.Entity{encryptionKey}, signingKey,
-		&openpgp.FileHints{IsBinary: true}, nil)
+		&openpgp.FileHints{IsBinary: true}, cfg)
 	if err != nil {
 		return nil, err
 	}
