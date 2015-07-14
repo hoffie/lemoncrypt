@@ -95,6 +95,9 @@ func (a *EncryptAction) loadConfig() error {
 // validateConfig performs basic upfront sanity checks on certain config values and
 // returns an error on failure.
 func (a *EncryptAction) validateConfig() error {
+	if len(a.cfg.Mailbox.Folders) < 1 {
+		return errors.New("no folders configured (mailbox.folders)")
+	}
 	if a.cfg.PGP.EncryptionKeyPath == "" {
 		return errors.New("missing encryption key path")
 	}
@@ -126,12 +129,7 @@ func (a *EncryptAction) setupTarget() error {
 		return err
 	}
 
-	err = a.target.Login(a.cfg.Server.Username, a.cfg.Server.Password)
-	if err != nil {
-		return err
-	}
-
-	return a.target.SelectMailbox(a.cfg.Mailbox.Target)
+	return a.target.Login(a.cfg.Server.Username, a.cfg.Server.Password)
 }
 
 // setupPGP initializes the PGP message converter.
@@ -180,9 +178,23 @@ func (a *EncryptAction) setupMetrics() error {
 	return err
 }
 
-// encryptMails starts iterating over the source mailbox's mails and invokes the callback
+// encryptMails starts iterating over the all configured folders' mails and
+// invokes the callback.
 func (a *EncryptAction) encryptMails() error {
-	return a.source.Iterate(a.cfg.Mailbox.Source, a.encryptMail)
+	for _, folder := range a.cfg.Mailbox.Folders {
+		logger.Infof("working on folder=%s", folder)
+		err := a.target.SelectMailbox(folder)
+		if err != nil {
+			logger.Errorf("failed to select mailbox %s", folder)
+			return err
+		}
+		err = a.source.Iterate(folder, a.encryptMail)
+		if err != nil {
+			logger.Errorf("folder iteration failed")
+			return err
+		}
+	}
+	return nil
 }
 
 // encryptMail is called for each message, handles transformation and writes the result
@@ -229,5 +241,5 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, origMa
 	}
 	logger.Infof("round-trip verification succeeded")
 	metricRecord.Success = true
-	return a.target.Append(a.cfg.Mailbox.Target, flags, idate, encMail)
+	return a.target.Append(flags, idate, encMail)
 }

@@ -9,6 +9,7 @@ import (
 // IMAPTarget provides support for writing mails to an IMAP mailbox.
 type IMAPTarget struct {
 	*IMAPConnection
+	curMailbox string
 }
 
 // NewIMAPTarget returns a new IMAPTarget instance.
@@ -20,6 +21,7 @@ func NewIMAPTarget() *IMAPTarget {
 
 // SelectMailbox sets up the IMAP connection to use the given mailbox name.
 func (w *IMAPTarget) SelectMailbox(mailbox string) error {
+	w.curMailbox = mailbox
 	logger.Debugf("blindly creating mailbox '%s'", mailbox)
 	_, err := imap.Wait(w.conn.Create(mailbox))
 	logger.Debugf("mailbox creation ended with err=%s", err)
@@ -33,10 +35,10 @@ func (w *IMAPTarget) SelectMailbox(mailbox string) error {
 
 // Append adds the given message to the given mailbox with the given flags and internal
 // date.
-func (w *IMAPTarget) Append(mailbox string, flags imap.FlagSet, idate *time.Time, msg imap.Literal) error {
-	logger.Debugf("appending mail to mailbox '%s'", mailbox)
+func (w *IMAPTarget) Append(flags imap.FlagSet, idate *time.Time, msg imap.Literal) error {
+	logger.Debugf("appending mail to mailbox '%s'", w.curMailbox)
 	delete(flags, "\\Recent")
-	_, err := imap.Wait(w.conn.Append(mailbox, flags, idate, msg))
+	_, err := imap.Wait(w.conn.Append(w.curMailbox, flags, idate, msg))
 	if err != nil {
 		logger.Errorf("failed to store message: %s", err)
 	}

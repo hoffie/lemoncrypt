@@ -16,14 +16,10 @@ password = "secret"
 # source specifies the name of the IMAP folder where new messages are read
 # from. Only "old" mail will be processed. "old" is currently hardcoded to mean
 # all mail except mail which is younger than 30 days or is still unread or
-# flagged ("starred")
-source = "INBOX"
-
-# target specifies the name of the IMAP folder where processed messages
-# will be moved to.
-# you may specify the same name than "source" as all processed mail is automatically
-# marked and protected against being processed multiple times.
-target = "INBOX.Archive"
+# flagged ("starred").
+# messages will be read from this folder, will be written back and will then be
+# deleted.
+folders = ["INBOX"]
 
 [pgp]
 # path to your keyring containing your public encryption key.
