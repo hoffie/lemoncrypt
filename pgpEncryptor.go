@@ -19,13 +19,13 @@ import (
 // PGPEncryptor implements PGP encryption; use PGPTransformer.NewEncryptor
 // to get a properly configured instance.
 type PGPEncryptor struct {
-	pgpBuffer   *bytes.Buffer
-	outBuffer   *bytes.Buffer
-	plainBuffer *bytes.Buffer
-	pgpWriter   io.WriteCloser
-	asciiWriter io.WriteCloser
-	keepHeaders []string
-	headers     textproto.MIMEHeader
+	pgpBuffer    *bytes.Buffer
+	outBuffer    *bytes.Buffer
+	headerBuffer *HeaderBuffer
+	pgpWriter    io.WriteCloser
+	asciiWriter  io.WriteCloser
+	keepHeaders  []string
+	headers      textproto.MIMEHeader
 }
 
 // NewPGPEncryptor returns a new PGPEncryptor instance, prepared for encrypting one single
@@ -37,7 +37,7 @@ func NewPGPEncryptor(signingKey, encryptionKey *openpgp.Entity, keepHeaders []st
 	e := &PGPEncryptor{}
 	e.keepHeaders = keepHeaders
 	e.pgpBuffer = &bytes.Buffer{}
-	e.plainBuffer = &bytes.Buffer{}
+	e.headerBuffer = NewHeaderBuffer()
 	var err error
 	e.asciiWriter, err = armor.Encode(e.pgpBuffer, "PGP MESSAGE", nil)
 	if err != nil {
@@ -58,7 +58,7 @@ func NewPGPEncryptor(signingKey, encryptionKey *openpgp.Entity, keepHeaders []st
 
 // Write passes the given data to the underlying PGP encryptor.
 func (e *PGPEncryptor) Write(data []byte) (int, error) {
-	_, err := e.plainBuffer.Write(data)
+	_, err := e.headerBuffer.Write(data)
 	if err != nil {
 		return 0, err
 	}
@@ -100,7 +100,7 @@ func (e *PGPEncryptor) finalizeMIME() error {
 // writePlainHeaders generates Message-Id and copies all the plain headers which are
 // configured to be copied up from the original message to the output buffer.
 func (e *PGPEncryptor) writePlainHeaders() error {
-	plainReader := bufio.NewReader(e.plainBuffer)
+	plainReader := bufio.NewReader(e.headerBuffer)
 	mimeReader := textproto.NewReader(plainReader)
 	var err error
 	e.headers, err = mimeReader.ReadMIMEHeader()
