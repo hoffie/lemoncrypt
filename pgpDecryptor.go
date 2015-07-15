@@ -87,6 +87,8 @@ func (d *PGPDecryptor) GetReader() (io.Reader, error) {
 	return d.md.UnverifiedBody, nil
 }
 
+// Verify ensures that the signature is valid.
+// It must be called after reading all data from the reader returned by .GetReader().
 func (d *PGPDecryptor) Verify() error {
 	if d.md.SignatureError != nil {
 		return fmt.Errorf("signature verification failed: %s", d.md.SignatureError)
