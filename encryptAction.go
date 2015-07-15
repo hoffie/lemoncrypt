@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/codegangsta/cli"
@@ -218,12 +217,7 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, origMa
 	if err != nil {
 		return err
 	}
-	origBuffer := &bytes.Buffer{}
-	_, err = origMail.WriteTo(origBuffer)
-	if err != nil {
-		return err
-	}
-	_, err = origMail.WriteTo(e)
+	origLen, err := origMail.WriteTo(e)
 	if err != nil {
 		return err
 	}
@@ -235,14 +229,22 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, origMa
 	metricRecord.ResultSize = encMail.Info().Len
 	d := a.pgp.NewDecryptor()
 	_, err = encMail.WriteTo(d)
-	decBytes, err := d.GetBytes()
+	decReader, err := d.GetReader()
 	if err != nil {
 		return err
 	}
 
-	if !reflect.DeepEqual(origBuffer.Bytes(), decBytes) {
-		return errors.New("round-trip verification failed")
+	v := NewVerifier(decReader, origLen)
+	_, err = origMail.WriteTo(v)
+	if err != nil {
+		return fmt.Errorf("round-trip verification failed: %s", err)
 	}
+
+	err = d.Verify()
+	if err != nil {
+		return fmt.Errorf("round-trip signature verification failed: %s", err)
+	}
+
 	logger.Infof("round-trip verification succeeded")
 	metricRecord.Success = true
 	return a.target.Append(flags, idate, encMail)

@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"mime"
 	"mime/multipart"
 	"net/textproto"
@@ -20,6 +20,7 @@ type PGPDecryptor struct {
 	buf                  *bytes.Buffer
 	headers              textproto.MIMEHeader
 	keyring              openpgp.EntityList
+	md                   *openpgp.MessageDetails
 	decryptionPassphrase string
 }
 
@@ -36,8 +37,10 @@ func (d *PGPDecryptor) Write(data []byte) (int, error) {
 	return d.buf.Write(data)
 }
 
-// GetBytes returns the decrypted message as a byte array.
-func (d *PGPDecryptor) GetBytes() ([]byte, error) {
+// GetReader returns the decrypted message as a Reader.
+// IMPORTANT: The reader will return unverified data. .Verify() has to
+// be called before working with the data!
+func (d *PGPDecryptor) GetReader() (io.Reader, error) {
 	var err error
 	plainReader := bufio.NewReader(d.buf)
 	mimeReader := textproto.NewReader(plainReader)
@@ -47,7 +50,7 @@ func (d *PGPDecryptor) GetBytes() ([]byte, error) {
 	}
 	if !d.isLemoncrypt() {
 		logger.Debugf("returning non-lemoncrypt message without modification")
-		return d.buf.Bytes(), nil
+		return d.buf, nil
 	}
 	boundary, err := d.getBoundary()
 	multipartReader := multipart.NewReader(mimeReader.R, boundary)
@@ -77,18 +80,18 @@ func (d *PGPDecryptor) GetBytes() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to de-armor: %s", err)
 	}
-	md, err := openpgp.ReadMessage(block.Body, d.keyring, d.decryptDecryptionKey, nil /*config*/)
+	d.md, err = openpgp.ReadMessage(block.Body, d.keyring, d.decryptDecryptionKey, nil /*config*/)
 	if err != nil {
 		return nil, fmt.Errorf("openpgp.ReadMessage failed: %s", err)
 	}
-	outBytes, err := ioutil.ReadAll(md.UnverifiedBody)
-	if err != nil {
-		return nil, fmt.Errorf("reading openpgp stream failed: %s", err)
+	return d.md.UnverifiedBody, nil
+}
+
+func (d *PGPDecryptor) Verify() error {
+	if d.md.SignatureError != nil {
+		return fmt.Errorf("signature verification failed: %s", d.md.SignatureError)
 	}
-	if md.SignatureError != nil {
-		return nil, fmt.Errorf("signature verification failed: %s", md.SignatureError)
-	}
-	return outBytes, nil
+	return nil
 }
 
 func (d *PGPDecryptor) decryptDecryptionKey(keys []openpgp.Key, symmetric bool) ([]byte, error) {

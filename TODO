@@ -3,6 +3,6 @@
 - document how signed mail is handled (works in TB)
 - STARTTLS support
 - custom SSL certificate support
-- document the missing memory optimization
+- document and measure memory requirements
 - proper line wrapping for long (copied) headers
 - keyid lookup strangeness (gpg vs. go)
