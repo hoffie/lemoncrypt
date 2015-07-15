@@ -218,6 +218,11 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, origMa
 	if err != nil {
 		return err
 	}
+	origBuffer := &bytes.Buffer{}
+	_, err = origMail.WriteTo(origBuffer)
+	if err != nil {
+		return err
+	}
 	_, err = origMail.WriteTo(e)
 	if err != nil {
 		return err
@@ -234,11 +239,7 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, origMa
 	if err != nil {
 		return err
 	}
-	origBuffer := &bytes.Buffer{}
-	_, err = origMail.WriteTo(origBuffer)
-	if err != nil {
-		return err
-	}
+
 	if !reflect.DeepEqual(origBuffer.Bytes(), decBytes) {
 		return errors.New("round-trip verification failed")
 	}
