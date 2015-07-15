@@ -181,14 +181,17 @@ func (a *EncryptAction) setupMetrics() error {
 // encryptMails starts iterating over the all configured folders' mails and
 // invokes the callback.
 func (a *EncryptAction) encryptMails() error {
-	for _, folder := range a.cfg.Mailbox.Folders {
-		logger.Infof("working on folder=%s", folder)
-		err := a.target.SelectMailbox(folder)
+	for sourceFolder, targetFolder := range a.cfg.Mailbox.Folders {
+		if targetFolder == "" {
+			targetFolder = sourceFolder
+		}
+		logger.Infof("working on folder=%s (target=%s)", sourceFolder, targetFolder)
+		err := a.target.SelectMailbox(targetFolder)
 		if err != nil {
-			logger.Errorf("failed to select mailbox %s", folder)
+			logger.Errorf("failed to select mailbox %s", targetFolder)
 			return err
 		}
-		err = a.source.Iterate(folder, a.encryptMail)
+		err = a.source.Iterate(sourceFolder, a.encryptMail)
 		if err != nil {
 			logger.Errorf("folder iteration failed")
 			return err

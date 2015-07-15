@@ -13,13 +13,16 @@ username = "doe@example.org"
 password = "secret"
 
 [mailbox]
-# source specifies the name of the IMAP folder where new messages are read
+# folders specifies the name of the IMAP folders where messages are read
 # from. Only "old" mail will be processed. "old" is currently hardcoded to mean
 # all mail except mail which is younger than 30 days or is still unread or
 # flagged ("starred").
-# messages will be read from this folder, will be written back and will then be
-# deleted.
-folders = ["INBOX"]
+# This is a table ("dictionary") that maps source folders to target folders.
+# An empty target folder may be given to signify that mails should be written
+# back to the source folder.
+# In the following example, mail from the Inbox will be encrypted and written back
+# to the Inbox, mail from "SomeDir" will be encrypted and archived to "CryptedSomeDir".
+folders = {"INBOX" = "", "INBOX.SomeDir" = "INBOX.CryptedSomeDir"}
 
 [pgp]
 # path to your keyring containing your public encryption key.
