@@ -9,7 +9,8 @@ type Config struct {
 		Password string
 	}
 	Mailbox struct {
-		Folders map[string]string
+		Folders           map[string]string
+		DeletePlainCopies bool
 	}
 	PGP struct {
 		EncryptionKeyPath       string

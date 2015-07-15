@@ -24,6 +24,14 @@ password = "secret"
 # to the Inbox, mail from "SomeDir" will be encrypted and archived to "CryptedSomeDir".
 folders = {"INBOX" = "", "INBOX.SomeDir" = "INBOX.CryptedSomeDir"}
 
+# delete_plain_copies denotes whether successfully encrypted mail should automatically
+# be deleted from the source folder. Mail which could not be encrypted or verified
+# successfully will never be deleted.
+# This option also enables an IMAP EXPUNGE at the end of the session; this means that
+# all mail, which is marked as deleted (even by other mail clients) will finally be
+# removed.
+delete_plain_copies = false
+
 [pgp]
 # path to your keyring containing your public encryption key.
 encryption_key_path = "~/.gnupg/pubring.gpg"

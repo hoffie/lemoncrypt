@@ -12,8 +12,9 @@ const IMAPDateFormat = "_2-Jan-2006"
 // IMAPSource provides support for traversing mails of an IMAP mailbox.
 type IMAPSource struct {
 	*IMAPConnection
-	callbackFunc IMAPSourceCallback
-	deletionSet  *imap.SeqSet
+	callbackFunc      IMAPSourceCallback
+	deletionSet       *imap.SeqSet
+	deletePlainCopies bool
 }
 
 // IMAPSourceCallback is the type for the IMAPSource callback parameter
@@ -23,9 +24,10 @@ type IMAPSourceCallback func(imap.FlagSet, *time.Time, imap.Literal) error
 const Month = 30 * 24 * time.Hour
 
 // NewIMAPSource returns a new IMAPSource instance.
-func NewIMAPSource() *IMAPSource {
+func NewIMAPSource(deletePlainCopies bool) *IMAPSource {
 	return &IMAPSource{
-		IMAPConnection: NewIMAPConnection(),
+		IMAPConnection:    NewIMAPConnection(),
+		deletePlainCopies: deletePlainCopies,
 	}
 }
 
@@ -99,6 +101,11 @@ func (w *IMAPSource) fetchUIDs(ids []uint32) error {
 	} else {
 		logger.Debugf("FETCH completed without errors")
 	}
+
+	if !w.deletePlainCopies {
+		return nil
+	}
+
 	if w.deletionSet.Empty() {
 		return nil
 	}
