@@ -112,7 +112,8 @@ func (a *EncryptAction) validateConfig() error {
 
 // setupSource initializes the source IMAP connection.
 func (a *EncryptAction) setupSource() error {
-	a.source = NewIMAPSource(a.cfg.Mailbox.DeletePlainCopies)
+	a.source = NewIMAPSource(a.cfg.Mailbox.DeletePlainCopies,
+		a.cfg.Mailbox.OnlyOlderThanDays)
 	err := a.source.Dial(a.cfg.Server.Address)
 	if err != nil {
 		return err

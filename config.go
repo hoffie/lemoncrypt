@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 // Config defines the structure of the TOML config file and represents the
 // stored values.
 type Config struct {
@@ -11,6 +13,7 @@ type Config struct {
 	Mailbox struct {
 		Folders           map[string]string
 		DeletePlainCopies bool
+		OnlyOlderThanDays time.Duration
 	}
 	PGP struct {
 		EncryptionKeyPath       string
