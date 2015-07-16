@@ -229,7 +229,7 @@ func (a *EncryptAction) encryptMail(flags imap.FlagSet, idate *time.Time, origMa
 	metricRecord.ResultSize = encMail.Info().Len
 	d := a.pgp.NewDecryptor()
 	_, err = encMail.WriteTo(d)
-	decReader, err := d.GetReader()
+	decReader, err := d.GetNonVerifyingReader()
 	if err != nil {
 		return err
 	}

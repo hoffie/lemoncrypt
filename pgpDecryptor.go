@@ -37,10 +37,10 @@ func (d *PGPDecryptor) Write(data []byte) (int, error) {
 	return d.buf.Write(data)
 }
 
-// GetReader returns the decrypted message as a Reader.
+// GetNonVerifyingReader returns the decrypted message as a Reader.
 // IMPORTANT: The reader will return unverified data. .Verify() has to
 // be called before working with the data!
-func (d *PGPDecryptor) GetReader() (io.Reader, error) {
+func (d *PGPDecryptor) GetNonVerifyingReader() (io.Reader, error) {
 	var err error
 	plainReader := bufio.NewReader(d.buf)
 	mimeReader := textproto.NewReader(plainReader)
