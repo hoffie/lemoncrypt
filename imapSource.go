@@ -142,12 +142,12 @@ func (w *IMAPSource) invokeMessageCallback(msgInfo *imap.MessageInfo) error {
 	idate := imap.AsDateTime(msgInfo.Attrs["INTERNALDATE"])
 	mailBytes := imap.AsBytes(msgInfo.Attrs["RFC822"])
 	mailLiteral := imap.NewLiteral(mailBytes)
-	logger.Debugf("invoking callback")
+	logger.Debugf("invoking message transformer")
 	err := w.callbackFunc(flags, &idate, mailLiteral)
 	if err == nil {
-		logger.Debugf("callback successful")
+		logger.Debugf("message transformation successful")
 	} else {
-		logger.Warningf("callback failed: %s", err)
+		logger.Warningf("message transformation failed: %s", err)
 	}
 	return err
 }
