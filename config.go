@@ -13,7 +13,7 @@ type Config struct {
 	Mailbox struct {
 		Folders           map[string]string
 		DeletePlainCopies bool
-		OnlyOlderThanDays time.Duration
+		MinAgeInDays      time.Duration
 	}
 	PGP struct {
 		EncryptionKeyPath       string

@@ -15,7 +15,7 @@ type IMAPSource struct {
 	callbackFunc      IMAPSourceCallback
 	deletionSet       *imap.SeqSet
 	deletePlainCopies bool
-	onlyOlderThanTime time.Duration
+	minAge            time.Duration
 }
 
 // IMAPSourceCallback is the type for the IMAPSource callback parameter
@@ -25,11 +25,11 @@ type IMAPSourceCallback func(imap.FlagSet, *time.Time, imap.Literal) error
 const Day = 24 * time.Hour
 
 // NewIMAPSource returns a new IMAPSource instance.
-func NewIMAPSource(deletePlainCopies bool, onlyOlderThanDays time.Duration) *IMAPSource {
+func NewIMAPSource(deletePlainCopies bool, minAgeInDays time.Duration) *IMAPSource {
 	return &IMAPSource{
 		IMAPConnection:    NewIMAPConnection(),
 		deletePlainCopies: deletePlainCopies,
-		onlyOlderThanTime: onlyOlderThanDays * Day,
+		minAge:            minAgeInDays * Day,
 	}
 }
 
@@ -43,7 +43,7 @@ func (w *IMAPSource) Iterate(mailbox string, callbackFunc IMAPSourceCallback) er
 		logger.Errorf("failed to select mailbox: %s", err)
 		return err
 	}
-	date := time.Now().Add(-w.onlyOlderThanTime)
+	date := time.Now().Add(-w.minAge)
 	dateStr := date.Format(IMAPDateFormat)
 	searchFilter := ("UNDELETED SEEN UNFLAGGED (NOT HEADER X-Lemoncrypt \"\") " +
 		"(OR SENTBEFORE " + dateStr + " BEFORE " + dateStr + ")")

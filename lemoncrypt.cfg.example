@@ -32,8 +32,8 @@ folders = {"INBOX" = "", "INBOX.SomeDir" = "INBOX.CryptedSomeDir"}
 # removed.
 delete_plain_copies = false
 
-# lemoncrypt will only process mails which are older than $only_older_than_days days.
-only_older_than_days = 30
+# lemoncrypt will only process mails which are older than $min_age_in_days.
+min_age_in_days = 30
 
 [pgp]
 # path to your keyring containing your public encryption key.
