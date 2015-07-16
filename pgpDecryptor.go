@@ -54,27 +54,9 @@ func (d *PGPDecryptor) GetNonVerifyingReader() (io.Reader, error) {
 	}
 	boundary, err := d.getBoundary()
 	multipartReader := multipart.NewReader(mimeReader.R, boundary)
-	part, err := multipartReader.NextPart()
+	part, err := d.getEncryptedPart(multipartReader)
 	if err != nil {
-		return nil, err
-	}
-	ctype, _, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
-	if err != nil {
-		return nil, err
-	}
-	if ctype != "application/pgp-encrypted" {
-		return nil, fmt.Errorf("unexpected Content-Type=%s, expected application/pgp-encrypted", ctype)
-	}
-	part, err = multipartReader.NextPart()
-	if err != nil {
-		return nil, err
-	}
-	ctype, _, err = mime.ParseMediaType(part.Header.Get("Content-Type"))
-	if err != nil {
-		return nil, err
-	}
-	if ctype != "application/octet-stream" {
-		return nil, fmt.Errorf("unexpected Content-Type=%s, expected application/octet-stream", ctype)
+		return nil, fmt.Errorf("failed to get encrypted part: %s", err)
 	}
 	block, err := armor.Decode(part)
 	if err != nil {
@@ -85,6 +67,34 @@ func (d *PGPDecryptor) GetNonVerifyingReader() (io.Reader, error) {
 		return nil, fmt.Errorf("openpgp.ReadMessage failed: %s", err)
 	}
 	return d.md.UnverifiedBody, nil
+}
+
+// getEncryptedPart returns the OpenPGP-encrypted part of a PGP/MIME message after
+// performing several sanity checks.
+func (d *PGPDecryptor) getEncryptedPart(r *multipart.Reader) (*multipart.Part, error) {
+	part, err := r.NextPart()
+	if err != nil {
+		return nil, err
+	}
+	ctype, _, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+	if err != nil {
+		return nil, err
+	}
+	if ctype != "application/pgp-encrypted" {
+		return nil, fmt.Errorf("unexpected Content-Type=%s, expected application/pgp-encrypted", ctype)
+	}
+	part, err = r.NextPart()
+	if err != nil {
+		return nil, err
+	}
+	ctype, _, err = mime.ParseMediaType(part.Header.Get("Content-Type"))
+	if err != nil {
+		return nil, err
+	}
+	if ctype != "application/octet-stream" {
+		return nil, fmt.Errorf("unexpected Content-Type=%s, expected application/octet-stream", ctype)
+	}
+	return part, nil
 }
 
 // Verify ensures that the signature is valid.
