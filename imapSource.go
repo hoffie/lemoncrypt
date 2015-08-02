@@ -15,7 +15,6 @@ type IMAPSource struct {
 	callbackFunc      IMAPSourceCallback
 	deletePlainCopies bool
 	minAge            time.Duration
-	deletionResults   []*imap.Command
 }
 
 // IMAPSourceCallback is the type for the IMAPSource callback parameter
@@ -73,37 +72,29 @@ func (w *IMAPSource) Iterate(mailbox string, callbackFunc IMAPSourceCallback) er
 // fetchUIDs downloads the messages with the given IDs and invokes the callback for
 // each message.
 func (w *IMAPSource) fetchUIDs(ids []uint32) error {
+	for _, id := range ids {
+		err := w.fetchID(id)
+		if err != nil {
+			logger.Errorf("fetchID failed: %s", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *IMAPSource) fetchID(id uint32) error {
 	set, _ := imap.NewSeqSet("")
-	set.AddNum(ids...)
-	cmd, err := w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE")
+	set.AddNum(id)
+	cmd, err := imap.Wait(w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE"))
 	if err != nil {
 		logger.Errorf("FETCH failed: %s", err)
 		return err
 	}
-	for cmd.InProgress() {
-		w.conn.Recv(-1)
-		for _, rsp := range cmd.Data {
-			_ = w.handleMessage(rsp)
-		}
-		cmd.Data = nil
+	for _, rsp := range cmd.Data {
+		_ = w.handleMessage(rsp)
 	}
 
-	if rsp, err := cmd.Result(imap.OK); err != nil {
-		if err == imap.ErrAborted {
-			logger.Errorf("FETCH command aborted")
-		} else {
-			logger.Errorf("FETCH error: %s", rsp.Info)
-		}
-		return err
-	} else {
-		logger.Debugf("FETCH completed without errors")
-	}
-	for _, cmd := range w.deletionResults {
-		rsp, err := cmd.Result(imap.OK)
-		if err != nil {
-			logger.Warningf("deletion failure: %s, info=%s", err, rsp.Info)
-		}
-	}
+	logger.Debugf("FETCH completed without errors")
 	return err
 
 }
@@ -129,12 +120,11 @@ func (w *IMAPSource) deleteMessage(uid uint32) error {
 	logger.Debugf("marking message uid=%d for deletion", uid)
 	set, _ := imap.NewSeqSet("")
 	set.AddNum(uid)
-	cmd, err := w.conn.UIDStore(set, "+FLAGS", "(\\Deleted)")
+	_, err := imap.Wait(w.conn.UIDStore(set, "+FLAGS", "(\\Deleted)"))
 	if err != nil {
 		logger.Errorf("failed to mark uid=%d for deletion: %s", uid, err)
 		return err
 	}
-	w.deletionResults = append(w.deletionResults, cmd)
 	return nil
 }
 
