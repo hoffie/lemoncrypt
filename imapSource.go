@@ -15,6 +15,7 @@ type IMAPSource struct {
 	callbackFunc      IMAPSourceCallback
 	deletePlainCopies bool
 	minAge            time.Duration
+	deletionResults   []*imap.Command
 }
 
 // IMAPSourceCallback is the type for the IMAPSource callback parameter
@@ -71,69 +72,40 @@ func (w *IMAPSource) Iterate(mailbox string, callbackFunc IMAPSourceCallback) er
 
 // fetchIDs downloads the messages with the given IDs and invokes the callback for
 // each message.
-// In order to improve performance, we always prefetch one message so that the IMAP
-// server action and network transfer can happen while we handle the previous message.
 func (w *IMAPSource) fetchIDs(ids []uint32) error {
-	var cur *imap.Command
-	for idx, id := range ids {
-		if idx == 0 {
-			var err error
-			cur, err = w.startFetch(id)
-			if err != nil {
-				logger.Errorf("pre-fetch request failed: %s", err)
-				return err
-			}
-			// don't start working on the first message just yet,
-			// we pre-fetch the second message in the next loop
-			//before we start working.
-			continue
-		}
-		next, err := w.startFetch(id)
-		if err != nil {
-			logger.Errorf("fetch request failed: %s", err)
-			return err
-		}
-		err = w.handleFetchResult(cur)
-		if err != nil {
-			logger.Errorf("fetching failed: %s", err)
-			return err
-		}
-		cur = next
-	}
-	// as our loop is one FETCH ahead, we still have to handle the last message here:
-	if cur == nil {
-		// loop didn't run
-		return nil
-	}
-	err := w.handleFetchResult(cur)
-	if err != nil {
-		logger.Errorf("fetching failed in last loop: %s", err)
-		return err
-	}
-	return nil
-}
-
-func (w *IMAPSource) startFetch(id uint32) (*imap.Command, error) {
 	set, _ := imap.NewSeqSet("")
-	set.AddNum(id)
-	return w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE")
-}
-
-func (w *IMAPSource) handleFetchResult(cmd *imap.Command) error {
-	cmd, err := imap.Wait(cmd, nil)
+	set.AddNum(ids...)
+	cmd, err := w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE")
 	if err != nil {
+		logger.Errorf("FETCH failed: %s", err)
 		return err
 	}
-	for _, rsp := range cmd.Data {
-		// we only fetch one message at a time, so this loop should
-		// only run once
-		err := w.handleMessage(rsp)
+	for cmd.InProgress() {
+		w.conn.Recv(-1)
+		for _, rsp := range cmd.Data {
+			_ = w.handleMessage(rsp)
+		}
+		cmd.Data = nil
+	}
+
+	if rsp, err := cmd.Result(imap.OK); err != nil {
+		if err == imap.ErrAborted {
+			logger.Errorf("FETCH command aborted")
+		} else {
+			logger.Errorf("FETCH error: %s", rsp.Info)
+		}
+		return err
+	} else {
+		logger.Debugf("FETCH completed without errors")
+	}
+	for _, cmd := range w.deletionResults {
+		rsp, err := cmd.Result(imap.OK)
 		if err != nil {
-			logger.Errorf("handleMessage failed: %s", err)
-			return err
+			logger.Warningf("deletion failure: %s, info=%s", err, rsp.Info)
 		}
 	}
-	return nil
+	return err
+
 }
 
 // handleMessage processes one message, invokes the callback and deletes it on
@@ -157,11 +129,12 @@ func (w *IMAPSource) deleteMessage(uid uint32) error {
 	logger.Debugf("marking message uid=%d for deletion", uid)
 	set, _ := imap.NewSeqSet("")
 	set.AddNum(uid)
-	_, err := imap.Wait(w.conn.UIDStore(set, "+FLAGS", "(\\Deleted)"))
+	cmd, err := w.conn.UIDStore(set, "+FLAGS", "(\\Deleted)")
 	if err != nil {
 		logger.Errorf("failed to mark uid=%d for deletion: %s", uid, err)
 		return err
 	}
+	w.deletionResults = append(w.deletionResults, cmd)
 	return nil
 }
 
