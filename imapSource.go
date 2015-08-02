@@ -13,9 +13,9 @@ const IMAPDateFormat = "_2-Jan-2006"
 type IMAPSource struct {
 	*IMAPConnection
 	callbackFunc      IMAPSourceCallback
+	deletionSet       *imap.SeqSet
 	deletePlainCopies bool
 	minAge            time.Duration
-	deletionResults   []*imap.Command
 }
 
 // IMAPSourceCallback is the type for the IMAPSource callback parameter
@@ -75,6 +75,7 @@ func (w *IMAPSource) Iterate(mailbox string, callbackFunc IMAPSourceCallback) er
 func (w *IMAPSource) fetchIDs(ids []uint32) error {
 	set, _ := imap.NewSeqSet("")
 	set.AddNum(ids...)
+	w.deletionSet, _ = imap.NewSeqSet("")
 	cmd, err := w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE")
 	if err != nil {
 		logger.Errorf("FETCH failed: %s", err)
@@ -86,6 +87,11 @@ func (w *IMAPSource) fetchIDs(ids []uint32) error {
 			_ = w.handleMessage(rsp)
 		}
 		cmd.Data = nil
+
+		// Consume other server data
+		for _ = range w.conn.Data {
+		}
+		w.conn.Data = nil
 	}
 
 	if rsp, err := cmd.Result(imap.OK); err != nil {
@@ -94,18 +100,24 @@ func (w *IMAPSource) fetchIDs(ids []uint32) error {
 		} else {
 			logger.Errorf("FETCH error: %s", rsp.Info)
 		}
-		return err
 	} else {
 		logger.Debugf("FETCH completed without errors")
 	}
-	for _, cmd := range w.deletionResults {
-		rsp, err := cmd.Result(imap.OK)
-		if err != nil {
-			logger.Warningf("deletion failure: %s, info=%s", err, rsp.Info)
-		}
+
+	if !w.deletePlainCopies {
+		return nil
+	}
+
+	if w.deletionSet.Empty() {
+		return nil
+	}
+
+	logger.Debugf("marking mails as deleted")
+	_, err = imap.Wait(w.conn.UIDStore(w.deletionSet, "+FLAGS", "(\\Deleted)"))
+	if err != nil {
+		logger.Errorf("failed to mark set=%v for deletion: %s", w.deletionSet.String(), err)
 	}
 	return err
-
 }
 
 // handleMessage processes one message, invokes the callback and deletes it on
@@ -117,25 +129,9 @@ func (w *IMAPSource) handleMessage(rsp *imap.Response) error {
 		return err
 	}
 	uid := imap.AsNumber(msgInfo.Attrs["UID"])
-	return w.deleteMessage(uid)
-}
-
-// deleteMessage marks the message with the given UID for deletion.
-func (w *IMAPSource) deleteMessage(uid uint32) error {
-	if !w.deletePlainCopies {
-		return nil
-	}
-
-	logger.Debugf("marking message uid=%d for deletion", uid)
-	set, _ := imap.NewSeqSet("")
-	set.AddNum(uid)
-	cmd, err := w.conn.UIDStore(set, "+FLAGS", "(\\Deleted)")
-	if err != nil {
-		logger.Errorf("failed to mark uid=%d for deletion: %s", uid, err)
-		return err
-	}
-	w.deletionResults = append(w.deletionResults, cmd)
-	return nil
+	logger.Debugf("internally marking message uid=%d for deletion", uid)
+	w.deletionSet.AddNum(uid)
+	return err
 }
 
 // invokeMessageCallback extracts the relevant data from the passed FETCH response
