@@ -71,34 +71,69 @@ func (w *IMAPSource) Iterate(mailbox string, callbackFunc IMAPSourceCallback) er
 
 // fetchIDs downloads the messages with the given IDs and invokes the callback for
 // each message.
+// In order to improve performance, we always prefetch one message so that the IMAP
+// server action and network transfer can happen while we handle the previous message.
 func (w *IMAPSource) fetchIDs(ids []uint32) error {
-	for _, id := range ids {
-		err := w.fetchID(id)
+	var cur *imap.Command
+	for idx, id := range ids {
+		if idx == 0 {
+			var err error
+			cur, err = w.startFetch(id)
+			if err != nil {
+				logger.Errorf("pre-fetch request failed: %s", err)
+				return err
+			}
+			// don't start working on the first message just yet,
+			// we pre-fetch the second message in the next loop
+			//before we start working.
+			continue
+		}
+		next, err := w.startFetch(id)
 		if err != nil {
-			logger.Errorf("fetchID failed: %s", err)
+			logger.Errorf("fetch request failed: %s", err)
 			return err
 		}
+		err = w.handleFetchResult(cur)
+		if err != nil {
+			logger.Errorf("fetching failed: %s", err)
+			return err
+		}
+		cur = next
+	}
+	// as our loop is one FETCH ahead, we still have to handle the last message here:
+	if cur == nil {
+		// loop didn't run
+		return nil
+	}
+	err := w.handleFetchResult(cur)
+	if err != nil {
+		logger.Errorf("fetching failed in last loop: %s", err)
+		return err
 	}
 	return nil
 }
 
-// fetchID downloads the message with the given ID and invokes the callback
-// for the message.
-func (w *IMAPSource) fetchID(id uint32) error {
+func (w *IMAPSource) startFetch(id uint32) (*imap.Command, error) {
 	set, _ := imap.NewSeqSet("")
 	set.AddNum(id)
-	cmd, err := imap.Wait(w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE"))
+	return w.conn.Fetch(set, "RFC822", "UID", "FLAGS", "INTERNALDATE")
+}
+
+func (w *IMAPSource) handleFetchResult(cmd *imap.Command) error {
+	cmd, err := imap.Wait(cmd, nil)
 	if err != nil {
-		logger.Errorf("FETCH failed: %s", err)
 		return err
 	}
 	for _, rsp := range cmd.Data {
-		_ = w.handleMessage(rsp)
+		// we only fetch one message at a time, so this loop should
+		// only run once
+		err := w.handleMessage(rsp)
+		if err != nil {
+			logger.Errorf("handleMessage failed: %s", err)
+			return err
+		}
 	}
-
-	logger.Debugf("FETCH completed without errors")
-	return err
-
+	return nil
 }
 
 // handleMessage processes one message, invokes the callback and deletes it on
