@@ -59,7 +59,7 @@ func (w *IMAPSource) Iterate(mailbox string, callbackFunc IMAPSourceCallback) er
 		if len(results) == 0 {
 			continue
 		}
-		_ = w.fetchUIDs(results)
+		_ = w.fetchIDs(results)
 	}
 	logger.Debugf("finally removing mail marked for deletion")
 	_, err = imap.Wait(w.conn.Expunge(nil))
@@ -69,9 +69,9 @@ func (w *IMAPSource) Iterate(mailbox string, callbackFunc IMAPSourceCallback) er
 	return err
 }
 
-// fetchUIDs downloads the messages with the given IDs and invokes the callback for
+// fetchIDs downloads the messages with the given IDs and invokes the callback for
 // each message.
-func (w *IMAPSource) fetchUIDs(ids []uint32) error {
+func (w *IMAPSource) fetchIDs(ids []uint32) error {
 	for _, id := range ids {
 		err := w.fetchID(id)
 		if err != nil {
@@ -82,6 +82,8 @@ func (w *IMAPSource) fetchUIDs(ids []uint32) error {
 	return nil
 }
 
+// fetchID downloads the message with the given ID and invokes the callback
+// for the message.
 func (w *IMAPSource) fetchID(id uint32) error {
 	set, _ := imap.NewSeqSet("")
 	set.AddNum(id)
