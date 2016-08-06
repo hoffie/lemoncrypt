@@ -38,7 +38,7 @@ func NewPGPTransformer(keepHeaders []string) *PGPTransformer {
 func (t *PGPTransformer) LoadEncryptionKey(path, id, passphrase string) error {
 	logger.Debugf("loading encryption key from %s (id=%s)", path, id)
 	var err error
-	t.encryptionKey, err = t.loadKey(path, id, passphrase)
+	t.encryptionKey, err = t.loadKey(path, id, passphrase, false)
 	if err != nil {
 		return err
 	}
@@ -52,13 +52,13 @@ func (t *PGPTransformer) LoadEncryptionKey(path, id, passphrase string) error {
 func (t *PGPTransformer) LoadSigningKey(path, id, passphrase string) error {
 	logger.Debugf("loading signing key from %s (id=%s)", path, id)
 	var err error
-	t.signingKey, err = t.loadKey(path, id, passphrase)
+	t.signingKey, err = t.loadKey(path, id, passphrase, true)
 	return err
 }
 
 // loadKey is the internal method which contains the common key loading and
 // parsing functionality.
-func (t *PGPTransformer) loadKey(path, wantID, passphrase string) (*openpgp.Entity, error) {
+func (t *PGPTransformer) loadKey(path, wantID, passphrase string, needPrivateKey bool) (*openpgp.Entity, error) {
 	keyringReader, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -79,6 +79,9 @@ func (t *PGPTransformer) loadKey(path, wantID, passphrase string) (*openpgp.Enti
 	}
 	if foundKey == nil {
 		return nil, fmt.Errorf("no key with keyid=%s", wantID)
+	}
+	if !needPrivateKey {
+		return foundKey, nil
 	}
 	priv := foundKey.PrivateKey
 	if priv == nil {
